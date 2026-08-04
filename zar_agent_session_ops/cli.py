@@ -11,6 +11,7 @@ from .core import (
     age_days,
     archive_session,
     archive_sessions,
+    extract_chatgpt_transcript,
     extract_transcript,
     find_session,
     format_size,
@@ -18,6 +19,7 @@ from .core import (
     load_policy,
     markdown_report,
     scan_codex,
+    scan_chatgpt_export,
     summarize_with_ollama,
     sync_sessions,
     policy_candidates,
@@ -65,6 +67,11 @@ def _parser() -> argparse.ArgumentParser:
     summarize.add_argument("--model", required=True)
     summarize.add_argument("--output", type=Path)
     summarize.add_argument("--max-chars", type=int, default=24_000)
+
+    chatgpt = commands.add_parser(
+        "import-chatgpt", help="import metadata from an official ChatGPT export"
+    )
+    chatgpt.add_argument("source", type=Path)
     return parser
 
 
@@ -103,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
                         "title": session.title,
                         "origin": session.origin,
                         "thread_source": session.thread_source,
+                        "source_entry": session.source_entry,
                     },
                     indent=2,
                 )
@@ -131,14 +139,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Weekly report written to {args.output.resolve()}")
         elif args.command == "summarize":
             session = find_session(args.db, args.session_id)
+            if session.agent == "chatgpt":
+                transcript = extract_chatgpt_transcript(session, args.max_chars)
+            else:
+                transcript = extract_transcript(session.path, args.max_chars)
             summary = summarize_with_ollama(
-                extract_transcript(session.path, args.max_chars), args.model
+                transcript, args.model
             )
             if args.output:
                 args.output.write_text(summary + "\n", encoding="utf-8")
                 print(f"Summary written to {args.output.resolve()}")
             else:
                 print(summary)
+        elif args.command == "import-chatgpt":
+            sessions = scan_chatgpt_export(args.source)
+            sync_sessions(args.db, sessions, agent="chatgpt")
+            print(f"Imported {len(sessions)} ChatGPT conversations into {args.db}")
         return 0
     except (
         FileNotFoundError,

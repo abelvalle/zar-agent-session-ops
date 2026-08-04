@@ -3,8 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.4.0` ofrece soporte
-completo para el inventario local de Codex sin leer bases SQLite privadas.
+sesiones locales de agentes de programación. La versión `0.5.0` ofrece soporte
+para el inventario local de Codex e importación experimental de exportaciones
+oficiales de ChatGPT.
 
 ## Funciones disponibles
 
@@ -17,6 +18,8 @@ completo para el inventario local de Codex sin leer bases SQLite privadas.
 - Resume una sesión mediante un modelo Ollama local.
 - Archiva sesiones individualmente o mediante una política configurable.
 - Simula cualquier archivado salvo que se indique `--apply`.
+- Importa metadatos y transcripciones bajo demanda desde un ZIP o JSON oficial
+  de ChatGPT sin copiar las conversaciones a la base propia.
 
 ## Inicio rápido
 
@@ -29,6 +32,25 @@ python -m zar_agent_session_ops show SESSION_ID
 python -m zar_agent_session_ops report --output sessions.md
 python -m zar_agent_session_ops weekly --output weekly-sessions.md
 ```
+
+## Importar una exportación de ChatGPT
+
+Solicita la exportación en **ChatGPT > Configuración > Controles de datos >
+Exportar**, descarga el ZIP y pásalo directamente al comando:
+
+```powershell
+python -m zar_agent_session_ops import-chatgpt C:\Descargas\chatgpt-export.zip
+```
+
+También se acepta `conversations.json`, un JSON numerado o un directorio con
+varios archivos `conversations*.json`. Una nueva importación reemplaza solamente
+los metadatos ChatGPT anteriores; el inventario Codex permanece intacto.
+
+OpenAI confirma que la exportación contiene el historial y puede incluir
+`conversations.json`, pero no publica un contrato para su estructura interna.
+Por ello, este adaptador es experimental y no constituye sincronización en
+tiempo real. Consulta la
+[guía oficial de exportación](https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data).
 
 Por defecto, `scan` usa `CODEX_HOME` o `%USERPROFILE%\.codex` y consulta:
 
@@ -85,6 +107,7 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 
 - El escaneo y los informes nunca modifican los JSONL originales.
 - La base propia contiene metadatos, no transcripciones.
+- Las conversaciones ChatGPT permanecen dentro del ZIP o JSON original.
 - El proyecto no consulta las bases SQLite internas de Codex.
 - `--apply` es obligatorio para mover archivos.
 - Los resúmenes solo se envían al Ollama local.
@@ -104,8 +127,6 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 
 ## Próximos hitos
 
-- Importación experimental de conversaciones desde una exportación oficial de
-  ChatGPT.
 - Adaptadores de Claude Code y OpenCode cuando existan fixtures reales.
 - Informes programados.
 - FastAPI, dashboard e integración con GitHub después de estabilizar los

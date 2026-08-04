@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - ChatGPT export import / Importación de exportaciones ChatGPT
+
+- ES: importa ZIP, JSON únicos y exportaciones numeradas; conserva únicamente
+  metadatos y permite resumir una conversación desde su archivo original.
+- EN: imports ZIP, single JSON, and numbered exports; stores metadata only and
+  can summarize a conversation from its original source file.
+- Verificación / Verification: 5 pruebas con un ZIP sintético de dos
+  conversaciones y migración preservando registros Codex `0.4.x`.
+- Límite / Limit: el esquema interno de `conversations.json` no está publicado;
+  el adaptador es experimental y no se validó contra una exportación personal.
+- Detalles / Details: [docs/milestones/0.5.0.md](docs/milestones/0.5.0.md).
+
 ## 0.4.0 - Codex inventory / Inventario Codex
 
 - ES: incorpora sesiones activas y archivadas, nombres de tarea, origen y tipo

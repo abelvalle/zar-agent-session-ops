@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.4.0` provides complete local Codex inventory support without reading private
-SQLite databases.
+`0.5.0` provides complete local Codex inventory support and experimental import
+from official ChatGPT data exports.
 
 ## Available features
 
@@ -17,6 +17,8 @@ SQLite databases.
 - Summarizes a session with a local Ollama model.
 - Archives individual sessions or applies a configurable retention policy.
 - Simulates every archive operation unless `--apply` is supplied.
+- Imports metadata and on-demand transcripts from an official ChatGPT ZIP or
+  JSON without copying conversations into the application database.
 
 ## Quick start
 
@@ -29,6 +31,25 @@ python -m zar_agent_session_ops show SESSION_ID
 python -m zar_agent_session_ops report --output sessions.md
 python -m zar_agent_session_ops weekly --output weekly-sessions.md
 ```
+
+## Import a ChatGPT data export
+
+Request an export under **ChatGPT > Settings > Data controls > Export**,
+download the ZIP, and pass it directly to the command:
+
+```powershell
+python -m zar_agent_session_ops import-chatgpt C:\Downloads\chatgpt-export.zip
+```
+
+`conversations.json`, numbered conversation JSON files, and directories with
+multiple `conversations*.json` files are also accepted. A new import replaces
+only previous ChatGPT metadata; the Codex inventory remains untouched.
+
+OpenAI confirms that the export contains chat history and may include
+`conversations.json`, but it does not publish a contract for the internal JSON
+schema. The adapter is therefore experimental and is not a live synchronization
+mechanism. See the
+[official export guide](https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data).
 
 By default, `scan` uses `CODEX_HOME` or `%USERPROFILE%\.codex` and reads:
 
@@ -83,6 +104,7 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 
 - Scanning and reporting never modify the original JSONL files.
 - The application database contains metadata, not transcripts.
+- ChatGPT conversations remain in the original ZIP or JSON.
 - The project does not query Codex's internal SQLite databases.
 - `--apply` is required before files can move.
 - Summaries are sent only to local Ollama.
@@ -102,7 +124,6 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 
 ## Next milestones
 
-- Experimental conversation import from an official ChatGPT data export.
 - Claude Code and OpenCode adapters once real fixtures are available.
 - Scheduled reports.
 - FastAPI, dashboard, and GitHub integration after local collectors stabilize.

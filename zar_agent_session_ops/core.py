@@ -4,6 +4,7 @@ import json
 import shutil
 import sqlite3
 import tomllib
+import zipfile
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ class Session:
     title: str = ""
     origin: str = ""
     thread_source: str = ""
+    source_entry: str = ""
 
 
 @dataclass(frozen=True)
@@ -141,11 +143,151 @@ def scan_codex(root: Path) -> list[Session]:
     ]
 
 
-def _ensure_schema(connection: sqlite3.Connection) -> None:
+def _chatgpt_conversations(data: object, path: Path, source_entry: str) -> list[Session]:
+    if not isinstance(data, list):
+        raise ValueError("ChatGPT conversations JSON must contain a list")
+    modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+    sessions: list[Session] = []
+    for conversation in data:
+        if not isinstance(conversation, dict):
+            continue
+        session_id = conversation.get("conversation_id") or conversation.get("id")
+        if not session_id:
+            continue
+        mapping = conversation.get("mapping")
+        event_count = len(mapping) if isinstance(mapping, dict) else 0
+        started = _unix_timestamp(conversation.get("create_time"), modified)
+        updated = _unix_timestamp(conversation.get("update_time"), started)
+        size_bytes = len(json.dumps(conversation, ensure_ascii=False).encode("utf-8"))
+        sessions.append(
+            Session(
+                session_id=str(session_id),
+                agent="chatgpt",
+                path=path.resolve(),
+                repository="",
+                started_at=started,
+                last_activity_at=max(started, updated),
+                size_bytes=size_bytes,
+                event_count=event_count,
+                status="imported",
+                title=str(conversation.get("title") or ""),
+                origin="ChatGPT export",
+                thread_source="chat",
+                source_entry=source_entry,
+            )
+        )
+    return sessions
+
+
+def _unix_timestamp(value: object, fallback: datetime) -> datetime:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return fallback
+    try:
+        return datetime.fromtimestamp(value, timezone.utc)
+    except (OSError, OverflowError, ValueError):
+        return fallback
+
+
+def scan_chatgpt_export(source: Path) -> list[Session]:
+    if not source.exists():
+        raise FileNotFoundError(f"ChatGPT export not found: {source}")
+    sessions: dict[str, Session] = {}
+    if source.is_file() and zipfile.is_zipfile(source):
+        with zipfile.ZipFile(source) as archive:
+            names = [
+                name
+                for name in archive.namelist()
+                if Path(name).name.lower().startswith("conversations")
+                and Path(name).suffix.lower() == ".json"
+            ]
+            for name in names:
+                # ponytail: stdlib loads the full export; add streaming only if real exports need it.
+                data = json.load(archive.open(name))
+                for session in _chatgpt_conversations(data, source, name):
+                    sessions[session.session_id] = session
+    else:
+        paths = [source] if source.is_file() else sorted(source.rglob("conversations*.json"))
+        for path in paths:
+            with path.open(encoding="utf-8", errors="replace") as stream:
+                data = json.load(stream)
+            for session in _chatgpt_conversations(data, path, ""):
+                sessions[session.session_id] = session
+    if not sessions:
+        raise ValueError("No ChatGPT conversations found in the export")
+    return list(sessions.values())
+
+
+def _chatgpt_export_data(session: Session) -> object:
+    if session.source_entry:
+        with zipfile.ZipFile(session.path) as archive:
+            return json.load(archive.open(session.source_entry))
+    with session.path.open(encoding="utf-8", errors="replace") as stream:
+        return json.load(stream)
+
+
+def extract_chatgpt_transcript(session: Session, max_chars: int = 24_000) -> str:
+    if max_chars < 1:
+        raise ValueError("max_chars must be a positive integer")
+    data = _chatgpt_export_data(session)
+    if not isinstance(data, list):
+        return ""
+    conversation = next(
+        (
+            item
+            for item in data
+            if isinstance(item, dict)
+            and str(item.get("conversation_id") or item.get("id") or "")
+            == session.session_id
+        ),
+        None,
+    )
+    if not conversation or not isinstance(conversation.get("mapping"), dict):
+        return ""
+    mapping = conversation["mapping"]
+    nodes: list[dict] = []
+    current = conversation.get("current_node")
+    seen: set[str] = set()
+    while isinstance(current, str) and current in mapping and current not in seen:
+        seen.add(current)
+        node = mapping[current]
+        if not isinstance(node, dict):
+            break
+        nodes.append(node)
+        current = node.get("parent")
+    nodes.reverse()
+    if not nodes:
+        nodes = [node for node in mapping.values() if isinstance(node, dict)]
+        nodes.sort(
+            key=lambda node: (
+                node["message"].get("create_time") or 0
+                if isinstance(node.get("message"), dict)
+                else 0
+            )
+        )
+
+    chunks: list[str] = []
+    for node in nodes:
+        message = node.get("message")
+        if not isinstance(message, dict):
+            continue
+        author = message.get("author") or {}
+        content = message.get("content") or {}
+        role = author.get("role") if isinstance(author, dict) else None
+        parts = content.get("parts") if isinstance(content, dict) else None
+        if role not in {"user", "assistant"} or not isinstance(parts, list):
+            continue
+        text = "\n".join(part for part in parts if isinstance(part, str)).strip()
+        if text:
+            chunks.append(f"{role}: {text}")
+    return "\n\n".join(chunks)[-max_chars:]
+
+
+def _create_sessions_table(connection: sqlite3.Connection) -> None:
     connection.execute(
         """
-        CREATE TABLE IF NOT EXISTS sessions (
-            path TEXT PRIMARY KEY,
+        CREATE TABLE sessions (
+            record_id TEXT PRIMARY KEY,
+            path TEXT NOT NULL,
             session_id TEXT NOT NULL,
             agent TEXT NOT NULL,
             repository TEXT NOT NULL,
@@ -156,16 +298,64 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             status TEXT NOT NULL DEFAULT 'active',
             title TEXT NOT NULL DEFAULT '',
             origin TEXT NOT NULL DEFAULT '',
-            thread_source TEXT NOT NULL DEFAULT ''
+            thread_source TEXT NOT NULL DEFAULT '',
+            source_entry TEXT NOT NULL DEFAULT ''
         )
         """
     )
+
+
+def _ensure_schema(connection: sqlite3.Connection) -> None:
+    table = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
+    ).fetchone()
+    if not table:
+        _create_sessions_table(connection)
+        return
+
     existing = {row[1] for row in connection.execute("PRAGMA table_info(sessions)")}
+    if "record_id" not in existing:
+        connection.execute("ALTER TABLE sessions RENAME TO sessions_legacy")
+        _create_sessions_table(connection)
+        optional = {
+            "status": "'active'",
+            "title": "''",
+            "origin": "''",
+            "thread_source": "''",
+            "source_entry": "''",
+        }
+        values = [
+            "agent || ':' || session_id || ':' || path",
+            "path",
+            "session_id",
+            "agent",
+            "repository",
+            "started_at",
+            "last_activity_at",
+            "size_bytes",
+            "event_count",
+            *(name if name in existing else default for name, default in optional.items()),
+        ]
+        connection.execute(
+            """
+            INSERT INTO sessions (
+                record_id, path, session_id, agent, repository, started_at,
+                last_activity_at, size_bytes, event_count, status, title,
+                origin, thread_source, source_entry
+            )
+            SELECT """
+            + ", ".join(values)
+            + " FROM sessions_legacy"
+        )
+        connection.execute("DROP TABLE sessions_legacy")
+        return
+
     for name, definition in (
         ("status", "TEXT NOT NULL DEFAULT 'active'"),
         ("title", "TEXT NOT NULL DEFAULT ''"),
         ("origin", "TEXT NOT NULL DEFAULT ''"),
         ("thread_source", "TEXT NOT NULL DEFAULT ''"),
+        ("source_entry", "TEXT NOT NULL DEFAULT ''"),
     ):
         if name not in existing:
             connection.execute(f"ALTER TABLE sessions ADD COLUMN {name} {definition}")
@@ -179,12 +369,14 @@ def sync_sessions(database: Path, sessions: list[Session], agent: str = "codex")
         connection.executemany(
             """
             INSERT INTO sessions (
-                path, session_id, agent, repository, started_at, last_activity_at,
-                size_bytes, event_count, status, title, origin, thread_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                record_id, path, session_id, agent, repository, started_at,
+                last_activity_at, size_bytes, event_count, status, title, origin,
+                thread_source, source_entry
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
+                    f"{session.agent}:{session.session_id}:{session.path}:{session.source_entry}",
                     str(session.path),
                     session.session_id,
                     session.agent,
@@ -197,6 +389,7 @@ def sync_sessions(database: Path, sessions: list[Session], agent: str = "codex")
                     session.title,
                     session.origin,
                     session.thread_source,
+                    session.source_entry,
                 )
                 for session in sessions
             ],
@@ -212,7 +405,7 @@ def load_sessions(database: Path) -> list[Session]:
             """
             SELECT session_id, agent, path, repository, started_at,
                    last_activity_at, size_bytes, event_count, status, title,
-                   origin, thread_source
+                   origin, thread_source, source_entry
             FROM sessions ORDER BY last_activity_at DESC
             """
         ).fetchall()
@@ -230,6 +423,7 @@ def load_sessions(database: Path) -> list[Session]:
             title=row[9],
             origin=row[10],
             thread_source=row[11],
+            source_entry=row[12],
         )
         for row in rows
     ]
@@ -445,8 +639,19 @@ def archive_sessions(
             moved.append((source, destination))
         with _connect(database) as connection:
             connection.executemany(
-                "DELETE FROM sessions WHERE path = ?",
-                [(str(source),) for source, _ in plans],
+                """
+                DELETE FROM sessions
+                WHERE agent = ? AND session_id = ? AND path = ? AND source_entry = ?
+                """,
+                [
+                    (
+                        session.agent,
+                        session.session_id,
+                        str(session.path),
+                        session.source_entry,
+                    )
+                    for session in sessions
+                ],
             )
     except (OSError, sqlite3.Error):
         for source, destination in reversed(moved):
