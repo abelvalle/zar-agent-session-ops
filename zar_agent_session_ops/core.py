@@ -644,13 +644,18 @@ def extract_transcript(path: Path, max_chars: int = 24_000) -> str:
     return "\n\n".join(chunks)[-max_chars:]
 
 
-def summarize_with_ollama(transcript: str, model: str, timeout: int = 120) -> str:
+def summarize_with_ollama(
+    transcript: str,
+    model: str,
+    timeout: int = 120,
+    system_prompt: str | None = None,
+) -> str:
     if not transcript:
         raise ValueError("The session has no user or assistant text to summarize")
     body = json.dumps(
         {
             "model": model,
-            "system": (
+            "system": system_prompt or (
                 "Summarize this coding-agent session as concise Markdown. Include "
                 "Work completed, Technical decisions, Pending tasks, and Risks. "
                 "Use only explicit evidence and write 'None identified' when needed."
@@ -679,6 +684,33 @@ def summarize_with_ollama(transcript: str, model: str, timeout: int = 120) -> st
     if not summary:
         raise RuntimeError("Ollama returned an empty summary")
     return summary
+
+
+def session_handoff(
+    session: Session, transcript: str, model: str, timeout: int = 120
+) -> str:
+    summary = summarize_with_ollama(
+        transcript,
+        model,
+        timeout,
+        (
+            "Create a minimal handoff for a new coding-agent session as Markdown. "
+            "Use the transcript's dominant language and exactly six level-two "
+            "sections for Goal, Completed work, Technical decisions, Pending tasks, "
+            "Risks, and First next action; translate the headings when appropriate. "
+            "Keep only information required to continue. Include file names, "
+            "commands, commits, or pull requests only "
+            "when explicit. Never invent details; write 'None identified' when absent."
+        ),
+    )
+    return (
+        "# Session handoff\n\n"
+        f"- Source agent: `{session.agent}`\n"
+        f"- Source session: `{session.session_id}`\n"
+        f"- Repository: `{session.repository or 'Not identified'}`\n"
+        f"- Last activity: `{session.last_activity_at.isoformat(timespec='seconds')}`\n\n"
+        f"{summary}\n"
+    )
 
 
 def archive_sessions(

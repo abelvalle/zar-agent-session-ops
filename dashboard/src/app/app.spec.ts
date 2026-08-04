@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.11.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.12.0' });
     http.expectOne('/api/sessions').flush({
       count: 2,
       sessions: [
@@ -39,7 +39,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Gobierno de sesiones');
-    expect(page.textContent).toContain('API 0.11.0');
+    expect(page.textContent).toContain('API 0.12.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Posible bloqueo');
@@ -88,7 +88,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.11.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.12.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     await fixture.whenStable();
@@ -114,7 +114,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.11.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.12.0' });
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],

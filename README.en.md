@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.11.0` provides a local Codex and ChatGPT inventory, conservative blocked
-session signals, and verified GitHub relationships in a local Angular dashboard.
+`0.12.0` provides a local Codex and ChatGPT inventory, conservative blocked
+session signals, and minimal-context handoffs for continuing work in a new session.
 
 ## Available features
 
@@ -20,6 +20,7 @@ session signals, and verified GitHub relationships in a local Angular dashboard.
 - Presents metrics, filters, pagination, and blocked signals in a responsive dashboard.
 - Resolves explicit GitHub Issue, Pull Request, and commit links.
 - Summarizes a session with a local Ollama model.
+- Generates a minimal Markdown handoff for a new Codex or ChatGPT session.
 - Archives individual sessions or applies a configurable retention policy.
 - Simulates every archive operation unless `--apply` is supplied.
 - Imports metadata and on-demand transcripts from an official ChatGPT ZIP or
@@ -44,6 +45,7 @@ python -m zar_agent_session_ops github SESSION_ID
 python -m zar_agent_session_ops report --output sessions.md
 python -m zar_agent_session_ops weekly --output weekly-sessions.md
 python -m zar_agent_session_ops blocked --output blocked-sessions.md
+python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b
 python -m zar_agent_session_ops maintain
 ```
 
@@ -249,6 +251,21 @@ characters by default.
 python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 ```
 
+## Minimal-context handoff
+
+`handoff` reuses local extraction and Ollama to retain only the goal, completed
+work, decisions, pending tasks, risks, and first next action. It neither appends
+the raw transcript to the result nor modifies the source session.
+
+```powershell
+python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b --output session-handoff.md
+```
+
+In Codex, start a new task with `/new`, then attach or paste
+`session-handoff.md`. In ChatGPT, open a new chat and attach the same file. Do
+not use `codex fork` for this purpose: it creates another chat but preserves the
+complete original transcript instead of reducing context.
+
 ## Security and privacy
 
 - Scanning and reporting never modify the original JSONL files.
@@ -260,7 +277,7 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 - GitHub integration sends only explicit identifiers to `api.github.com`.
 - `--apply` is required before files can move.
 - `maintain` also requires `--apply-policy` before files can move.
-- Summaries are sent only to local Ollama.
+- Summaries and handoffs are sent only to local Ollama.
 - Under Compose, Codex is mounted read-only, the API runs as UID 10001, and only
   the dashboard publishes a port bound to `127.0.0.1`.
 

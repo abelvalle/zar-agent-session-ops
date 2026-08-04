@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.0 - Minimal-context handoff / Relevo de contexto mínimo
+
+- ES: añade `handoff` para convertir una sesión Codex o ChatGPT indexada en un
+  relevo Markdown conciso mediante el Ollama local.
+- EN: adds `handoff` to turn an indexed Codex or ChatGPT session into a concise
+  Markdown handoff through local Ollama.
+- ES: conserva solo metadatos mínimos, objetivo, trabajo, decisiones,
+  pendientes, riesgos y siguiente acción; no concatena la transcripción original.
+- EN: retains only minimal metadata, goal, work, decisions, pending tasks,
+  risks, and next action; it does not append the raw transcript.
+- Verificación / Verification: 13 pruebas Python, 3 pruebas Angular, build de
+  producción y stack Docker 0.12 validados.
+- Detalles / Details: [docs/milestones/0.12.0.md](docs/milestones/0.12.0.md).
+
 ## 0.11.0 - Background inventory refresh / Actualización en segundo plano
 
 - ES: añade `POST /api/refresh` y `GET /api/refresh` para iniciar un escaneo

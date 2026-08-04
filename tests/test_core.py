@@ -16,6 +16,7 @@ from zar_agent_session_ops.core import (
     markdown_report,
     policy_candidates,
     scan_codex,
+    session_handoff,
     summarize_with_ollama,
     sync_sessions,
     weekly_report,
@@ -158,6 +159,37 @@ class SessionFlowTest(unittest.TestCase):
             request = json.loads(call.call_args.args[0].data)
             self.assertEqual("local-model", request["model"])
             self.assertFalse(request["stream"])
+
+    def test_generates_minimal_codex_handoff(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            session_file = Path(directory) / "session.jsonl"
+            session_file.write_text(
+                json.dumps(
+                    {
+                        "timestamp": "2026-08-04T10:00:00Z",
+                        "type": "session_meta",
+                        "payload": {"id": "session-1", "cwd": "D:/repo"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            session = scan_codex(Path(directory))[0]
+            response = io.BytesIO(
+                json.dumps({"response": "## Goal\nContinue parser work"}).encode()
+            )
+            with patch("zar_agent_session_ops.core.urlopen", return_value=response) as call:
+                handoff = session_handoff(
+                    session, "user: Fix parser\n\nassistant: Parser fixed", "local-model"
+                )
+
+            self.assertIn("# Session handoff", handoff)
+            self.assertIn("Source agent: `codex`", handoff)
+            self.assertIn("Source session: `session-1`", handoff)
+            self.assertIn("Repository: `D:/repo`", handoff)
+            self.assertNotIn("user: Fix parser", handoff)
+            request = json.loads(call.call_args.args[0].data)
+            self.assertIn("minimal handoff", request["system"])
+            self.assertEqual("user: Fix parser\n\nassistant: Parser fixed", request["prompt"])
 
 
 if __name__ == "__main__":

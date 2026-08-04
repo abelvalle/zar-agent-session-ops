@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.11.0` ofrece un
+sesiones locales de agentes de programación. La versión `0.12.0` ofrece un
 inventario local de Codex y ChatGPT, detección conservadora de posibles bloqueos
-y relaciones verificadas con GitHub desde un dashboard Angular local.
+y relevos de contexto mínimo para continuar el trabajo en una sesión nueva.
 
 ## Funciones disponibles
 
@@ -21,6 +21,7 @@ y relaciones verificadas con GitHub desde un dashboard Angular local.
 - Presenta métricas, filtros, paginación y bloqueos en un dashboard adaptable.
 - Resuelve enlaces explícitos a GitHub Issues, Pull Requests y commits.
 - Resume una sesión mediante un modelo Ollama local.
+- Genera un relevo Markdown mínimo para una nueva sesión Codex o ChatGPT.
 - Archiva sesiones individualmente o mediante una política configurable.
 - Simula cualquier archivado salvo que se indique `--apply`.
 - Importa metadatos y transcripciones bajo demanda desde un ZIP o JSON oficial
@@ -46,6 +47,7 @@ python -m zar_agent_session_ops github SESSION_ID
 python -m zar_agent_session_ops report --output sessions.md
 python -m zar_agent_session_ops weekly --output weekly-sessions.md
 python -m zar_agent_session_ops blocked --output blocked-sessions.md
+python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b
 python -m zar_agent_session_ops maintain
 ```
 
@@ -259,6 +261,21 @@ caracteres por defecto.
 python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 ```
 
+## Relevo de contexto mínimo
+
+`handoff` reutiliza la extracción local y Ollama para producir únicamente el
+objetivo, trabajo completado, decisiones, pendientes, riesgos y primera acción.
+No concatena la transcripción original al resultado ni modifica la sesión fuente.
+
+```powershell
+python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b --output session-handoff.md
+```
+
+Para Codex, inicia una tarea nueva con `/new` y adjunta o pega
+`session-handoff.md`. Para ChatGPT, abre un chat nuevo y adjunta el mismo archivo.
+No uses `codex fork` para este caso: crea otro chat, pero conserva la
+transcripción original completa en vez de reducir el contexto.
+
 ## Seguridad y privacidad
 
 - El escaneo y los informes nunca modifican los JSONL originales.
@@ -270,7 +287,7 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 - La integración GitHub solo envía identificadores explícitos a `api.github.com`.
 - `--apply` es obligatorio para mover archivos.
 - `maintain` tampoco mueve archivos sin `--apply-policy`.
-- Los resúmenes solo se envían al Ollama local.
+- Los resúmenes y relevos solo se envían al Ollama local.
 - En Compose, Codex se monta como solo lectura, la API se ejecuta con UID 10001
   y solo el dashboard publica un puerto ligado a `127.0.0.1`.
 

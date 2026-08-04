@@ -6,6 +6,7 @@ import zipfile
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from zar_agent_session_ops.cli import main
 from zar_agent_session_ops.core import (
@@ -52,6 +53,30 @@ class ChatGPTImportTest(unittest.TestCase):
             self.assertEqual(
                 "user: Fix parser\n\nassistant: Parser fixed",
                 extract_chatgpt_transcript(first),
+            )
+
+            handoff = root / "handoff.md"
+            with patch(
+                "zar_agent_session_ops.cli.session_handoff",
+                return_value="# Session handoff\n",
+            ) as generate:
+                result = main(
+                    [
+                        "--db",
+                        str(database),
+                        "handoff",
+                        "chat-1",
+                        "--model",
+                        "local-model",
+                        "--output",
+                        str(handoff),
+                    ]
+                )
+            self.assertEqual(0, result)
+            self.assertEqual("# Session handoff\n", handoff.read_text(encoding="utf-8"))
+            self.assertEqual(
+                "user: Fix parser\n\nassistant: Parser fixed",
+                generate.call_args.args[1],
             )
 
     @staticmethod

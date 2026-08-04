@@ -25,6 +25,7 @@ from .core import (
     policy_candidates,
     scan_codex,
     scan_chatgpt_export,
+    session_handoff,
     summarize_with_ollama,
     sync_sessions,
     weekly_report,
@@ -79,6 +80,14 @@ def _parser() -> argparse.ArgumentParser:
     summarize.add_argument("--model", required=True)
     summarize.add_argument("--output", type=Path)
     summarize.add_argument("--max-chars", type=int, default=24_000)
+
+    handoff = commands.add_parser(
+        "handoff", help="write minimal context for a new agent session"
+    )
+    handoff.add_argument("session_id")
+    handoff.add_argument("--model", required=True)
+    handoff.add_argument("--output", type=Path, default=Path("session-handoff.md"))
+    handoff.add_argument("--max-chars", type=int, default=24_000)
 
     chatgpt = commands.add_parser(
         "import-chatgpt", help="import metadata from an official ChatGPT export"
@@ -197,6 +206,16 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Summary written to {args.output.resolve()}")
             else:
                 print(summary)
+        elif args.command == "handoff":
+            session = find_session(args.db, args.session_id)
+            if session.agent == "chatgpt":
+                transcript = extract_chatgpt_transcript(session, args.max_chars)
+            else:
+                transcript = extract_transcript(session.path, args.max_chars)
+            args.output.write_text(
+                session_handoff(session, transcript, args.model), encoding="utf-8"
+            )
+            print(f"Session handoff written to {args.output.resolve()}")
         elif args.command == "import-chatgpt":
             sessions = scan_chatgpt_export(args.source)
             sync_sessions(args.db, sessions, agent="chatgpt")
