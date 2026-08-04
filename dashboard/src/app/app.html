@@ -1,0 +1,184 @@
+<mat-toolbar class="topbar">
+  <div class="brand" aria-label="Zar Agent Session Ops">
+    <span class="brand-mark" aria-hidden="true">ZA</span>
+    <span class="brand-name">Session Ops</span>
+  </div>
+  <span class="topbar-spacer"></span>
+  <span class="api-state" [class.api-state--offline]="failed()">
+    <span class="api-state__dot" aria-hidden="true"></span>
+    @if (failed()) {
+      API no disponible
+    } @else if (health.value(); as api) {
+      API {{ api.version }}
+    } @else {
+      Conectando
+    }
+  </span>
+</mat-toolbar>
+
+@if (loading()) {
+  <mat-progress-bar mode="indeterminate" aria-label="Cargando inventario" />
+}
+
+<main class="shell">
+  <header class="page-header">
+    <div>
+      <p class="page-kicker">Control local</p>
+      <h1>Gobierno de sesiones</h1>
+      <p class="page-summary">
+        Revisa actividad, archivo y señales de bloqueo sin abrir las transcripciones.
+      </p>
+    </div>
+    <button mat-flat-button type="button" (click)="refresh()" [disabled]="loading()">
+      Actualizar
+    </button>
+  </header>
+
+  @if (failed()) {
+    <section class="message message--error" role="alert">
+      <div>
+        <h2>No se pudo cargar el inventario</h2>
+        <p>Comprueba que la API local está ejecutándose en el puerto 8000.</p>
+      </div>
+      <button mat-stroked-button type="button" (click)="refresh()">Reintentar</button>
+    </section>
+  } @else {
+    <section class="metrics" aria-label="Resumen del inventario">
+      <article>
+        <span>Total</span>
+        <strong>{{ sessions().length }}</strong>
+      </article>
+      <article>
+        <span>Activas</span>
+        <strong>{{ activeCount() }}</strong>
+      </article>
+      <article>
+        <span>Archivadas</span>
+        <strong>{{ archivedCount() }}</strong>
+      </article>
+      <article class="metric-alert">
+        <span>Posible bloqueo</span>
+        <strong>{{ blocked.value()?.count ?? 0 }}</strong>
+      </article>
+    </section>
+
+    <section class="inventory" aria-labelledby="inventory-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="inventory-title">Inventario</h2>
+          <p>{{ filteredSessions().length }} sesiones visibles</p>
+        </div>
+        <div class="filters" aria-label="Filtros del inventario">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Agente</mat-label>
+            <mat-select [value]="agentFilter()" (selectionChange)="setAgent($event.value)">
+              <mat-option value="all">Todos</mat-option>
+              @for (agent of agents(); track agent) {
+                <mat-option [value]="agent">{{ agentName(agent) }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Estado</mat-label>
+            <mat-select [value]="statusFilter()" (selectionChange)="setStatus($event.value)">
+              <mat-option value="all">Todos</mat-option>
+              <mat-option value="active">Activas</mat-option>
+              <mat-option value="archived">Archivadas</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table
+          mat-table
+          [dataSource]="pagedSessions()"
+          class="session-table"
+          aria-label="Sesiones de agentes"
+        >
+          <ng-container matColumnDef="title">
+            <th mat-header-cell *matHeaderCellDef>Sesión</th>
+            <td mat-cell *matCellDef="let session">
+              <span class="session-title">{{ session.title || 'Sin título' }}</span>
+              <span class="session-id">{{ session.id }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="agent">
+            <th mat-header-cell *matHeaderCellDef>Agente</th>
+            <td mat-cell *matCellDef="let session">{{ agentName(session.agent) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let session">
+              <span
+                class="status-label"
+                [class.status-label--archived]="session.status === 'archived'"
+              >
+                {{ statusName(session.status) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="repository">
+            <th mat-header-cell *matHeaderCellDef>Repositorio</th>
+            <td mat-cell *matCellDef="let session" class="repository-cell">
+              {{ session.repository || 'No detectado' }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="last_activity_at">
+            <th mat-header-cell *matHeaderCellDef>Actividad</th>
+            <td mat-cell *matCellDef="let session">
+              {{ session.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="size_bytes">
+            <th mat-header-cell *matHeaderCellDef>Tamaño</th>
+            <td mat-cell *matCellDef="let session">{{ formatBytes(session.size_bytes) }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          <tr class="mat-row empty-row" *matNoDataRow>
+            <td class="mat-cell" [attr.colspan]="displayedColumns.length">
+              No hay sesiones para estos filtros.
+            </td>
+          </tr>
+        </table>
+      </div>
+      <mat-paginator
+        [length]="filteredSessions().length"
+        [pageIndex]="pageIndex()"
+        [pageSize]="pageSize()"
+        [pageSizeOptions]="[25, 50, 100]"
+        aria-label="Paginación de sesiones"
+        (page)="setPage($event)"
+      />
+    </section>
+
+    <section class="blocked-panel" aria-labelledby="blocked-title">
+      <div>
+        <h2 id="blocked-title">Revisión de bloqueos</h2>
+        <p>
+          Umbral: {{ blocked.value()?.threshold_hours ?? 24 }} horas sin actividad tras
+          <code>task_started</code>.
+        </p>
+      </div>
+      @if ((blocked.value()?.count ?? 0) === 0) {
+        <p class="blocked-clear">No hay sesiones que requieran revisión.</p>
+      } @else {
+        <ul>
+          @for (session of blocked.value()?.sessions ?? []; track session.id) {
+            <li>
+              <strong>{{ session.title || 'Sin título' }}</strong>
+              <span>{{ session.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+</main>

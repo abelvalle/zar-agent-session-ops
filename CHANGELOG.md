@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0 - Local Angular dashboard / Dashboard Angular local
+
+- ES: añade un dashboard Angular 22 y Material con métricas, filtros,
+  paginación, revisión de bloqueos y diseño adaptable.
+- EN: adds an Angular 22 and Material dashboard with metrics, filters,
+  pagination, blocked-session review, and responsive layout.
+- ES: establece `/api/health`, `/api/sessions` y `/api/blocked` como rutas
+  canónicas; mantiene las rutas 0.7 ocultas del esquema por compatibilidad.
+- EN: makes `/api/health`, `/api/sessions`, and `/api/blocked` canonical while
+  retaining the 0.7 routes outside the schema for compatibility.
+- Verificación / Verification: 7 pruebas Python, 2 pruebas Angular, auditoría
+  npm sin vulnerabilidades, build de producción y ejecución real sobre 461
+  sesiones en escritorio y móvil.
+- Detalles / Details: [docs/milestones/0.8.0.md](docs/milestones/0.8.0.md).
+
 ## 0.7.0 - Local read-only API / API local de solo lectura
 
 - ES: añade una API FastAPI local con salud, inventario filtrable y posibles

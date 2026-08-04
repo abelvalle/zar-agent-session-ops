@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.7.0` provides a local Codex and ChatGPT inventory, conservative blocked
-session signals, and a local read-only FastAPI API.
+`0.8.0` provides a local Codex and ChatGPT inventory, conservative blocked
+session signals, and a local Angular dashboard over a read-only FastAPI API.
 
 ## Available features
 
@@ -17,6 +17,7 @@ session signals, and a local read-only FastAPI API.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
 - Runs scanning, policy evaluation, and reports in one schedulable cycle.
 - Exposes health, sessions, and blocked signals through a local API.
+- Presents metrics, filters, pagination, and blocked signals in a responsive dashboard.
 - Summarizes a session with a local Ollama model.
 - Archives individual sessions or applies a configurable retention policy.
 - Simulates every archive operation unless `--apply` is supplied.
@@ -46,9 +47,9 @@ python -m zar_agent_session_ops maintain
 The server listens exclusively on `127.0.0.1` and provides three read-only
 operations:
 
-- `GET /health`: status and version.
-- `GET /sessions`: inventory with optional `agent` and `status` filters.
-- `GET /blocked`: conservative potentially blocked signal.
+- `GET /api/health`: status and version.
+- `GET /api/sessions`: inventory with optional `agent` and `status` filters.
+- `GET /api/blocked`: conservative potentially blocked signal.
 
 ```powershell
 python -m zar_agent_session_ops serve
@@ -57,7 +58,30 @@ python -m zar_agent_session_ops serve --port 8080
 
 OpenAPI documentation is available at `http://127.0.0.1:8000/docs`. Responses
 exclude the JSONL path and `source_entry`. This version has no authentication;
-do not publish it through a proxy or expose it outside the local machine.
+do not publish it through a proxy or expose it outside the local machine. The
+unprefixed routes remain available for 0.7 compatibility.
+
+## Local dashboard
+
+Requires Node.js 22.22.3 or newer. Refresh the inventory and start the API:
+
+```powershell
+python -m zar_agent_session_ops scan
+python -m zar_agent_session_ops serve
+```
+
+In another terminal:
+
+```powershell
+cd dashboard
+npm install
+npm start
+```
+
+Open `http://127.0.0.1:4200`. The development server proxies `/api/**` to the
+local API, so CORS does not need to be enabled. The interface provides status
+metrics, agent and status filters, pagination, potentially blocked-session
+review, plus loading, error, and empty states. It adapts to desktop and mobile.
 
 ## Import a ChatGPT data export
 
@@ -186,6 +210,10 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 ```powershell
 python -m pip install -e ".[test]"
 python -B -m unittest discover -s tests -v
+cd dashboard
+npm audit
+npm run build
+npm test
 git diff --check
 ```
 
@@ -198,5 +226,5 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 ## Next milestones
 
 - Claude Code and OpenCode adapters once real fixtures are available.
-- Local Angular dashboard over the existing API.
 - GitHub Issues and Pull Requests integration.
+- Reproducible Docker packaging once a deployment workflow exists.

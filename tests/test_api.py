@@ -41,14 +41,16 @@ class ApiTest(unittest.TestCase):
 
             with TestClient(create_app(database, config)) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.7.0"},
-                    client.get("/health").json(),
+                    {"status": "ok", "version": "0.8.0"},
+                    client.get("/api/health").json(),
                 )
-                inventory = client.get("/sessions?agent=codex&status=active").json()
+                inventory = client.get(
+                    "/api/sessions?agent=codex&status=active"
+                ).json()
                 self.assertEqual(1, inventory["count"])
                 self.assertNotIn("path", inventory["sessions"][0])
                 self.assertNotIn("source_entry", inventory["sessions"][0])
-                blocked = client.get("/blocked").json()
+                blocked = client.get("/api/blocked").json()
                 self.assertEqual(1, blocked["count"])
                 self.assertEqual(24, blocked["threshold_hours"])
                 schema = client.get("/openapi.json").json()
@@ -58,6 +60,11 @@ class ApiTest(unittest.TestCase):
                         for operations in schema["paths"].values()
                     )
                 )
+                self.assertEqual(
+                    {"/api/health", "/api/sessions", "/api/blocked"},
+                    set(schema["paths"]),
+                )
+                self.assertEqual("ok", client.get("/health").json()["status"])
 
             self.assertEqual("source remains untouched", source.read_text(encoding="utf-8"))
 

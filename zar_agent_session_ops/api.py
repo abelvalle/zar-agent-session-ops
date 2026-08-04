@@ -37,11 +37,13 @@ def create_app(
 ) -> FastAPI:
     app = FastAPI(title="Zar Agent Session Ops", version=__version__)
 
-    @app.get("/health")
+    @app.get("/health", include_in_schema=False)
+    @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
 
-    @app.get("/sessions")
+    @app.get("/sessions", include_in_schema=False)
+    @app.get("/api/sessions")
     def sessions(
         agent: str | None = None, status: str | None = None
     ) -> dict[str, object]:
@@ -55,7 +57,8 @@ def create_app(
             "sessions": [_session_data(item) for item in items],
         }
 
-    @app.get("/blocked")
+    @app.get("/blocked", include_in_schema=False)
+    @app.get("/api/blocked")
     def blocked() -> dict[str, object]:
         policy = load_policy(config)
         items = blocked_candidates(load_sessions(database), policy)
