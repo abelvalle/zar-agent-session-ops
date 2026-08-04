@@ -3,8 +3,9 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.5.0` provides complete local Codex inventory support and experimental import
-from official ChatGPT data exports.
+`0.6.0` provides complete local Codex inventory support, conservative detection
+of potentially blocked sessions, and experimental import from official ChatGPT
+data exports.
 
 ## Available features
 
@@ -14,6 +15,8 @@ from official ChatGPT data exports.
   those metadata are available.
 - Stores normalized metadata only in SQLite.
 - Produces general and weekly Markdown reports.
+- Flags potentially blocked Codex sessions from terminal lifecycle events.
+- Runs scanning, policy evaluation, and reports in one schedulable cycle.
 - Summarizes a session with a local Ollama model.
 - Archives individual sessions or applies a configurable retention policy.
 - Simulates every archive operation unless `--apply` is supplied.
@@ -30,6 +33,8 @@ python -m zar_agent_session_ops list --stale-days 7
 python -m zar_agent_session_ops show SESSION_ID
 python -m zar_agent_session_ops report --output sessions.md
 python -m zar_agent_session_ops weekly --output weekly-sessions.md
+python -m zar_agent_session_ops blocked --output blocked-sessions.md
+python -m zar_agent_session_ops maintain
 ```
 
 ## Import a ChatGPT data export
@@ -81,6 +86,7 @@ Configure retention in
 [policy]
 archive_after_days = 30
 archive_dir = "archive"
+blocked_after_hours = 24
 ```
 
 ```powershell
@@ -89,6 +95,48 @@ python -m zar_agent_session_ops policy --apply
 ```
 
 The policy never re-archives sessions already archived by Codex.
+
+## Potentially blocked sessions
+
+An active Codex session is flagged only when its latest terminal event is
+`task_started`, no later completion or abort exists, and it has been inactive
+longer than `blocked_after_hours`. This is an operational signal for human
+review, not a semantic claim about the conversation.
+
+```powershell
+python -m zar_agent_session_ops blocked --output blocked-sessions.md
+```
+
+## Scheduled maintenance
+
+`maintain` performs one Codex scan, retention-policy evaluation, and writes
+`sessions.md`, `weekly.md`, and `blocked.md`. The default directory is
+`%USERPROFILE%\.zar-agent-session-ops\reports`. Policy actions remain a dry run
+unless `--apply-policy` is explicitly supplied.
+
+```powershell
+python -m zar_agent_session_ops maintain
+python -m zar_agent_session_ops maintain --apply-policy
+```
+
+The project does not run its own daemon. On Windows, register a daily command
+with Task Scheduler:
+
+```powershell
+$python = (Get-Command python).Source
+$action = New-ScheduledTaskAction `
+  -Execute $python `
+  -Argument "-m zar_agent_session_ops maintain" `
+  -WorkingDirectory "D:\path\to\zar-agent-session-ops"
+$trigger = New-ScheduledTaskTrigger -Daily -At 09:00
+Register-ScheduledTask -TaskName "ZarAgentSessionOps" -Action $action -Trigger $trigger
+```
+
+On Linux or macOS, the equivalent `cron` entry is:
+
+```cron
+0 9 * * * cd /path/to/zar-agent-session-ops && python3 -m zar_agent_session_ops maintain
+```
 
 ## Local Ollama summaries
 
@@ -107,6 +155,7 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 - ChatGPT conversations remain in the original ZIP or JSON.
 - The project does not query Codex's internal SQLite databases.
 - `--apply` is required before files can move.
+- `maintain` also requires `--apply-policy` before files can move.
 - Summaries are sent only to local Ollama.
 
 ## Development
@@ -125,5 +174,4 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 ## Next milestones
 
 - Claude Code and OpenCode adapters once real fixtures are available.
-- Scheduled reports.
 - FastAPI, dashboard, and GitHub integration after local collectors stabilize.

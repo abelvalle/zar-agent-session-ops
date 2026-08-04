@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 - Blocked-session signals and maintenance / Señales de bloqueo y mantenimiento
+
+- ES: detecta de forma conservadora sesiones Codex potencialmente bloqueadas y
+  genera un informe específico para revisión humana.
+- EN: conservatively detects potentially blocked Codex sessions and produces a
+  dedicated report for human review.
+- ES: añade `maintain`, un ciclo único apto para el Programador de tareas o
+  `cron`; la política de archivo sigue siendo una simulación por defecto.
+- EN: adds `maintain`, a one-shot cycle for Task Scheduler or `cron`; archive
+  policy actions remain a dry run by default.
+- Verificación / Verification: 6 pruebas; ejecución real sobre 461 sesiones,
+  con 1 posible bloqueo, 16 candidatas a archivo y 0 fuentes modificadas.
+- Detalles / Details: [docs/milestones/0.6.0.md](docs/milestones/0.6.0.md).
+
 ## 0.5.0 - ChatGPT export import / Importación de exportaciones ChatGPT
 
 - ES: importa ZIP, JSON únicos y exportaciones numeradas; conserva únicamente

@@ -29,12 +29,14 @@ class Session:
     origin: str = ""
     thread_source: str = ""
     source_entry: str = ""
+    last_event_type: str = ""
 
 
 @dataclass(frozen=True)
 class Policy:
     archive_after_days: int
     archive_dir: Path
+    blocked_after_hours: int = 24
 
 
 @contextmanager
@@ -82,6 +84,7 @@ def read_codex_session(
     repository = ""
     origin = ""
     thread_source = ""
+    last_event_type = ""
     event_count = 0
 
     with path.open(encoding="utf-8", errors="replace") as stream:
@@ -98,6 +101,15 @@ def read_codex_session(
             if event_count == 1:
                 started = observed_at
             last_activity = max(last_activity or observed_at, observed_at)
+
+            if item.get("type") == "event_msg":
+                payload = item.get("payload")
+                if isinstance(payload, dict) and payload.get("type") in {
+                    "task_started",
+                    "task_complete",
+                    "turn_aborted",
+                }:
+                    last_event_type = str(payload["type"])
 
             if item.get("type") == "session_meta":
                 payload = item.get("payload") or {}
@@ -123,6 +135,7 @@ def read_codex_session(
         title=(titles or {}).get(str(session_id), ""),
         origin=str(origin),
         thread_source=thread_source,
+        last_event_type=last_event_type,
     )
 
 
@@ -299,7 +312,8 @@ def _create_sessions_table(connection: sqlite3.Connection) -> None:
             title TEXT NOT NULL DEFAULT '',
             origin TEXT NOT NULL DEFAULT '',
             thread_source TEXT NOT NULL DEFAULT '',
-            source_entry TEXT NOT NULL DEFAULT ''
+            source_entry TEXT NOT NULL DEFAULT '',
+            last_event_type TEXT NOT NULL DEFAULT ''
         )
         """
     )
@@ -323,6 +337,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             "origin": "''",
             "thread_source": "''",
             "source_entry": "''",
+            "last_event_type": "''",
         }
         values = [
             "agent || ':' || session_id || ':' || path",
@@ -341,7 +356,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             INSERT INTO sessions (
                 record_id, path, session_id, agent, repository, started_at,
                 last_activity_at, size_bytes, event_count, status, title,
-                origin, thread_source, source_entry
+                origin, thread_source, source_entry, last_event_type
             )
             SELECT """
             + ", ".join(values)
@@ -356,6 +371,7 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
         ("origin", "TEXT NOT NULL DEFAULT ''"),
         ("thread_source", "TEXT NOT NULL DEFAULT ''"),
         ("source_entry", "TEXT NOT NULL DEFAULT ''"),
+        ("last_event_type", "TEXT NOT NULL DEFAULT ''"),
     ):
         if name not in existing:
             connection.execute(f"ALTER TABLE sessions ADD COLUMN {name} {definition}")
@@ -371,8 +387,8 @@ def sync_sessions(database: Path, sessions: list[Session], agent: str = "codex")
             INSERT INTO sessions (
                 record_id, path, session_id, agent, repository, started_at,
                 last_activity_at, size_bytes, event_count, status, title, origin,
-                thread_source, source_entry
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                thread_source, source_entry, last_event_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -390,6 +406,7 @@ def sync_sessions(database: Path, sessions: list[Session], agent: str = "codex")
                     session.origin,
                     session.thread_source,
                     session.source_entry,
+                    session.last_event_type,
                 )
                 for session in sessions
             ],
@@ -405,7 +422,7 @@ def load_sessions(database: Path) -> list[Session]:
             """
             SELECT session_id, agent, path, repository, started_at,
                    last_activity_at, size_bytes, event_count, status, title,
-                   origin, thread_source, source_entry
+                   origin, thread_source, source_entry, last_event_type
             FROM sessions ORDER BY last_activity_at DESC
             """
         ).fetchall()
@@ -424,6 +441,7 @@ def load_sessions(database: Path) -> list[Session]:
             origin=row[10],
             thread_source=row[11],
             source_entry=row[12],
+            last_event_type=row[13],
         )
         for row in rows
     ]
@@ -444,7 +462,7 @@ def age_days(session: Session, now: datetime | None = None) -> int:
 
 
 def load_policy(path: Path) -> Policy:
-    default = Policy(30, Path.home() / ".zar-agent-session-ops" / "archive")
+    default = Policy(30, Path.home() / ".zar-agent-session-ops" / "archive", 24)
     if not path.is_file():
         return default
 
@@ -452,15 +470,22 @@ def load_policy(path: Path) -> Policy:
         values = tomllib.load(stream).get("policy", {})
     days = values.get("archive_after_days", default.archive_after_days)
     archive_dir = values.get("archive_dir", str(default.archive_dir))
+    blocked_hours = values.get("blocked_after_hours", default.blocked_after_hours)
     if isinstance(days, bool) or not isinstance(days, int) or days < 1:
         raise ValueError("policy.archive_after_days must be a positive integer")
     if not isinstance(archive_dir, str) or not archive_dir.strip():
         raise ValueError("policy.archive_dir must be a non-empty path")
+    if (
+        isinstance(blocked_hours, bool)
+        or not isinstance(blocked_hours, int)
+        or blocked_hours < 1
+    ):
+        raise ValueError("policy.blocked_after_hours must be a positive integer")
 
     resolved_archive = Path(archive_dir).expanduser()
     if not resolved_archive.is_absolute():
         resolved_archive = path.parent / resolved_archive
-    return Policy(days, resolved_archive.resolve())
+    return Policy(days, resolved_archive.resolve(), blocked_hours)
 
 
 def policy_candidates(
@@ -470,6 +495,21 @@ def policy_candidates(
         session
         for session in sessions
         if session.status == "active" and age_days(session, now) >= policy.archive_after_days
+    ]
+
+
+def blocked_candidates(
+    sessions: list[Session], policy: Policy, now: datetime | None = None
+) -> list[Session]:
+    current = now or datetime.now(timezone.utc)
+    threshold = policy.blocked_after_hours * 3_600
+    return [
+        session
+        for session in sessions
+        if session.agent == "codex"
+        and session.status == "active"
+        and session.last_event_type == "task_started"
+        and (current - session.last_activity_at).total_seconds() >= threshold
     ]
 
 
@@ -486,7 +526,11 @@ def markdown_report(
     sessions: list[Session], stale_days: int, now: datetime | None = None
 ) -> str:
     current = now or datetime.now(timezone.utc)
-    stale = [session for session in sessions if age_days(session, current) >= stale_days]
+    stale = [
+        session
+        for session in sessions
+        if session.status == "active" and age_days(session, current) >= stale_days
+    ]
     lines = [
         "# Agent session report",
         "",
@@ -498,6 +542,25 @@ def markdown_report(
         "",
     ]
     lines.extend(_session_table(sessions, current))
+    return "\n".join(lines) + "\n"
+
+
+def blocked_report(
+    sessions: list[Session], policy: Policy, now: datetime | None = None
+) -> str:
+    current = now or datetime.now(timezone.utc)
+    blocked = blocked_candidates(sessions, policy, current)
+    lines = [
+        "# Potentially blocked Codex sessions",
+        "",
+        f"Generated: {current.isoformat(timespec='seconds')}",
+        "",
+        f"- Threshold: {policy.blocked_after_hours} hours",
+        f"- Candidates: {len(blocked)}",
+        "- Signal: last terminal event is `task_started` without later completion",
+        "",
+    ]
+    lines.extend(_session_table(blocked, current))
     return "\n".join(lines) + "\n"
 
 

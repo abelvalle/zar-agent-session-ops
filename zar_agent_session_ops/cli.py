@@ -11,6 +11,8 @@ from .core import (
     age_days,
     archive_session,
     archive_sessions,
+    blocked_candidates,
+    blocked_report,
     extract_chatgpt_transcript,
     extract_transcript,
     find_session,
@@ -18,11 +20,11 @@ from .core import (
     load_sessions,
     load_policy,
     markdown_report,
+    policy_candidates,
     scan_codex,
     scan_chatgpt_export,
     summarize_with_ollama,
     sync_sessions,
-    policy_candidates,
     weekly_report,
 )
 
@@ -30,6 +32,7 @@ from .core import (
 DEFAULT_SOURCE = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 DEFAULT_DATABASE = Path.home() / ".zar-agent-session-ops" / "sessions.db"
 DEFAULT_CONFIG = Path.home() / ".zar-agent-session-ops" / "config.toml"
+DEFAULT_REPORT_DIR = DEFAULT_DATABASE.parent / "reports"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -50,6 +53,9 @@ def _parser() -> argparse.ArgumentParser:
     report = commands.add_parser("report", help="write a Markdown report")
     report.add_argument("--output", type=Path, default=Path("sessions.md"))
     report.add_argument("--stale-days", type=int, default=7)
+
+    blocked = commands.add_parser("blocked", help="report potentially blocked sessions")
+    blocked.add_argument("--output", type=Path, default=Path("blocked-sessions.md"))
 
     archive = commands.add_parser("archive", help="move a session to an archive")
     archive.add_argument("session_id")
@@ -72,6 +78,11 @@ def _parser() -> argparse.ArgumentParser:
         "import-chatgpt", help="import metadata from an official ChatGPT export"
     )
     chatgpt.add_argument("source", type=Path)
+
+    maintain = commands.add_parser("maintain", help="run one scheduler-safe cycle")
+    maintain.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    maintain.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIR)
+    maintain.add_argument("--apply-policy", action="store_true")
     return parser
 
 
@@ -111,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
                         "origin": session.origin,
                         "thread_source": session.thread_source,
                         "source_entry": session.source_entry,
+                        "last_event_type": session.last_event_type,
                     },
                     indent=2,
                 )
@@ -120,6 +132,16 @@ def main(argv: list[str] | None = None) -> int:
                 markdown_report(load_sessions(args.db), args.stale_days), encoding="utf-8"
             )
             print(f"Report written to {args.output.resolve()}")
+        elif args.command == "blocked":
+            policy = load_policy(args.config)
+            sessions = load_sessions(args.db)
+            args.output.write_text(
+                blocked_report(sessions, policy), encoding="utf-8"
+            )
+            print(
+                f"Blocked report written to {args.output.resolve()} "
+                f"({len(blocked_candidates(sessions, policy))} candidates)"
+            )
         elif args.command == "archive":
             source, destination = archive_session(
                 args.db, args.session_id, args.archive_dir, args.apply
@@ -155,6 +177,32 @@ def main(argv: list[str] | None = None) -> int:
             sessions = scan_chatgpt_export(args.source)
             sync_sessions(args.db, sessions, agent="chatgpt")
             print(f"Imported {len(sessions)} ChatGPT conversations into {args.db}")
+        elif args.command == "maintain":
+            sync_sessions(args.db, scan_codex(args.source))
+            policy = load_policy(args.config)
+            sessions = load_sessions(args.db)
+            candidates = policy_candidates(sessions, policy)
+            archive_sessions(
+                args.db, candidates, policy.archive_dir, args.apply_policy
+            )
+            if args.apply_policy:
+                sessions = load_sessions(args.db)
+            args.output_dir.mkdir(parents=True, exist_ok=True)
+            (args.output_dir / "sessions.md").write_text(
+                markdown_report(sessions, policy.archive_after_days), encoding="utf-8"
+            )
+            (args.output_dir / "weekly.md").write_text(
+                weekly_report(sessions), encoding="utf-8"
+            )
+            blocked = blocked_candidates(sessions, policy)
+            (args.output_dir / "blocked.md").write_text(
+                blocked_report(sessions, policy), encoding="utf-8"
+            )
+            action = "archived" if args.apply_policy else "archive candidates"
+            print(
+                f"Maintenance complete: {len(sessions)} sessions, "
+                f"{len(candidates)} {action}, {len(blocked)} potentially blocked"
+            )
         return 0
     except (
         FileNotFoundError,
