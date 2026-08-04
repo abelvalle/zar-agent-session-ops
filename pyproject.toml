@@ -1,0 +1,16 @@
+[project]
+name = "zar-agent-session-ops"
+version = "0.1.0"
+description = "Local lifecycle management for coding-agent sessions"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Abel Valle" }]
+dependencies = []
+
+[project.scripts]
+zar-session = "zar_agent_session_ops.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
