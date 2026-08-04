@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,7 +25,7 @@ from .core import (
 )
 
 
-DEFAULT_SOURCE = Path.home() / ".codex" / "sessions"
+DEFAULT_SOURCE = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 DEFAULT_DATABASE = Path.home() / ".zar-agent-session-ops" / "sessions.db"
 DEFAULT_CONFIG = Path.home() / ".zar-agent-session-ops" / "config.toml"
 
@@ -77,10 +78,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "list":
             now = datetime.now(timezone.utc)
             for session in load_sessions(args.db):
-                state = "stale" if age_days(session, now) >= args.stale_days else "active"
+                state = session.status
+                if state == "active" and age_days(session, now) >= args.stale_days:
+                    state = "stale"
                 print(
                     f"{session.session_id}\t{state}\t{age_days(session, now)}d\t"
-                    f"{format_size(session.size_bytes)}\t{session.repository or '-'}"
+                    f"{format_size(session.size_bytes)}\t{session.origin or '-'}\t"
+                    f"{session.title or session.repository or '-'}"
                 )
         elif args.command == "show":
             session = find_session(args.db, args.session_id)
@@ -95,6 +99,10 @@ def main(argv: list[str] | None = None) -> int:
                         "last_activity_at": session.last_activity_at.isoformat(),
                         "size_bytes": session.size_bytes,
                         "event_count": session.event_count,
+                        "status": session.status,
+                        "title": session.title,
+                        "origin": session.origin,
+                        "thread_source": session.thread_source,
                     },
                     indent=2,
                 )
