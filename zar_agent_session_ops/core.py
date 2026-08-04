@@ -4,10 +4,13 @@ import json
 import shutil
 import sqlite3
 import tomllib
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 @dataclass(frozen=True)
@@ -56,11 +59,13 @@ def read_codex_session(path: Path) -> Session:
     repository = ""
     event_count = 0
 
-    with path.open(encoding="utf-8") as stream:
+    with path.open(encoding="utf-8", errors="replace") as stream:
         for line in stream:
             try:
                 item = json.loads(line)
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(item, dict):
                 continue
 
             event_count += 1
@@ -71,6 +76,8 @@ def read_codex_session(path: Path) -> Session:
 
             if item.get("type") == "session_meta":
                 payload = item.get("payload") or {}
+                if not isinstance(payload, dict):
+                    continue
                 session_id = payload.get("id") or payload.get("session_id") or session_id
                 repository = payload.get("cwd") or repository
 
@@ -223,6 +230,32 @@ def markdown_report(
         f"- Stored size: {format_size(sum(item.size_bytes for item in sessions))}",
         f"- Stale ({stale_days}+ days): {len(stale)}",
         "",
+    ]
+    lines.extend(_session_table(sessions, current))
+    return "\n".join(lines) + "\n"
+
+
+def weekly_report(sessions: list[Session], now: datetime | None = None) -> str:
+    current = now or datetime.now(timezone.utc)
+    start = current - timedelta(days=7)
+    recent = [session for session in sessions if session.last_activity_at >= start]
+    repositories = {session.repository for session in recent if session.repository}
+    lines = [
+        "# Weekly agent session report",
+        "",
+        f"Period: {start.date().isoformat()} to {current.date().isoformat()}",
+        "",
+        f"- Active sessions: {len(recent)}",
+        f"- Repositories: {len(repositories)}",
+        f"- Stored size: {format_size(sum(item.size_bytes for item in recent))}",
+        "",
+    ]
+    lines.extend(_session_table(recent, current))
+    return "\n".join(lines) + "\n"
+
+
+def _session_table(sessions: list[Session], now: datetime) -> list[str]:
+    lines = [
         "| Agent | Session | Repository | Last activity | Age | Size | Events |",
         "| --- | --- | --- | --- | ---: | ---: | ---: |",
     ]
@@ -231,10 +264,84 @@ def markdown_report(
         lines.append(
             f"| {session.agent} | `{session.session_id}` | {repository} | "
             f"{session.last_activity_at.isoformat(timespec='seconds')} | "
-            f"{age_days(session, current)} d | {format_size(session.size_bytes)} | "
+            f"{age_days(session, now)} d | {format_size(session.size_bytes)} | "
             f"{session.event_count} |"
         )
-    return "\n".join(lines) + "\n"
+    return lines
+
+
+def extract_transcript(path: Path, max_chars: int = 24_000) -> str:
+    if max_chars < 1:
+        raise ValueError("max_chars must be a positive integer")
+    chunks: deque[str] = deque()
+    length = 0
+    with path.open(encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") != "response_item":
+                continue
+            payload = item.get("payload") or {}
+            if not isinstance(payload, dict):
+                continue
+            role = payload.get("role")
+            if role not in {"user", "assistant"}:
+                continue
+            for content in payload.get("content") or []:
+                if not isinstance(content, dict):
+                    continue
+                if content.get("type") not in {"input_text", "output_text"}:
+                    continue
+                message = content.get("text")
+                if not isinstance(message, str) or not message.strip():
+                    continue
+                chunk = f"{role}: {message.strip()}"
+                chunks.append(chunk)
+                length += len(chunk) + 2
+                while length > max_chars and len(chunks) > 1:
+                    length -= len(chunks.popleft()) + 2
+    return "\n\n".join(chunks)[-max_chars:]
+
+
+def summarize_with_ollama(transcript: str, model: str, timeout: int = 120) -> str:
+    if not transcript:
+        raise ValueError("The session has no user or assistant text to summarize")
+    body = json.dumps(
+        {
+            "model": model,
+            "system": (
+                "Summarize this coding-agent session as concise Markdown. Include "
+                "Work completed, Technical decisions, Pending tasks, and Risks. "
+                "Use only explicit evidence and write 'None identified' when needed."
+            ),
+            "prompt": transcript,
+            "stream": False,
+        }
+    ).encode("utf-8")
+    request = Request(
+        "http://127.0.0.1:11434/api/generate",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            summary = json.load(response).get("response", "").strip()
+    except HTTPError as error:
+        try:
+            detail = json.load(error).get("error", str(error))
+        except (json.JSONDecodeError, AttributeError):
+            detail = str(error)
+        raise RuntimeError(f"Ollama error: {detail}") from error
+    except URLError as error:
+        raise RuntimeError("Ollama is unavailable at http://127.0.0.1:11434") from error
+    if not summary:
+        raise RuntimeError("Ollama returned an empty summary")
+    return summary
 
 
 def archive_sessions(

@@ -10,14 +10,17 @@ from .core import (
     age_days,
     archive_session,
     archive_sessions,
+    extract_transcript,
     find_session,
     format_size,
     load_sessions,
     load_policy,
     markdown_report,
     scan_codex,
+    summarize_with_ollama,
     sync_sessions,
     policy_candidates,
+    weekly_report,
 )
 
 
@@ -52,6 +55,15 @@ def _parser() -> argparse.ArgumentParser:
 
     policy = commands.add_parser("policy", help="archive sessions matching the policy")
     policy.add_argument("--apply", action="store_true")
+
+    weekly = commands.add_parser("weekly", help="write the last seven days as Markdown")
+    weekly.add_argument("--output", type=Path, default=Path("weekly-sessions.md"))
+
+    summarize = commands.add_parser("summarize", help="summarize one session with Ollama")
+    summarize.add_argument("session_id")
+    summarize.add_argument("--model", required=True)
+    summarize.add_argument("--output", type=Path)
+    summarize.add_argument("--max-chars", type=int, default=24_000)
     return parser
 
 
@@ -106,7 +118,27 @@ def main(argv: list[str] | None = None) -> int:
             for source, destination in plans:
                 print(f"{action}: {source} -> {destination}")
             print(f"{action} sessions: {len(plans)}")
+        elif args.command == "weekly":
+            args.output.write_text(weekly_report(load_sessions(args.db)), encoding="utf-8")
+            print(f"Weekly report written to {args.output.resolve()}")
+        elif args.command == "summarize":
+            session = find_session(args.db, args.session_id)
+            summary = summarize_with_ollama(
+                extract_transcript(session.path, args.max_chars), args.model
+            )
+            if args.output:
+                args.output.write_text(summary + "\n", encoding="utf-8")
+                print(f"Summary written to {args.output.resolve()}")
+            else:
+                print(summary)
         return 0
-    except (FileNotFoundError, FileExistsError, LookupError, OSError, ValueError) as error:
+    except (
+        FileNotFoundError,
+        FileExistsError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as error:
         print(error, file=sys.stderr)
         return 1

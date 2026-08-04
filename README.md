@@ -38,6 +38,19 @@ python -m zar_agent_session_ops policy
 python -m zar_agent_session_ops policy --apply
 ```
 
+Generate a deterministic weekly activity report:
+
+```powershell
+python -m zar_agent_session_ops weekly --output weekly-sessions.md
+```
+
+Summaries use Ollama only on `127.0.0.1`; session text is capped at the latest
+24,000 characters by default and is never sent to a remote endpoint:
+
+```powershell
+python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
+```
+
 By default the scanner reads `%USERPROFILE%\.codex\sessions` and stores its
 index in `%USERPROFILE%\.zar-agent-session-ops\sessions.db`. Both paths are
 configurable with `--source` and `--db`.
@@ -50,7 +63,6 @@ configurable with `--source` and `--db`.
 ## Roadmap
 
 - Claude Code and OpenCode adapters, once real session fixtures are available.
-- Optional local summaries through Ollama.
 - Scheduled reports.
 - FastAPI dashboard and GitHub integration after the local workflow is proven.
 
