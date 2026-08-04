@@ -2,7 +2,7 @@ name: zar-agent-session-ops
 
 services:
   api:
-    image: zar-agent-session-ops-api:0.10.0
+    image: zar-agent-session-ops-api:0.11.0
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -10,6 +10,7 @@ services:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       ZAR_SESSION_CONFIG: /data/config.toml
       ZAR_SESSION_DB: /data/sessions.db
+      ZAR_SESSION_SOURCE: /codex
     volumes:
       - type: bind
         source: ${CODEX_HOME:?Set CODEX_HOME to the local .codex directory}
@@ -30,7 +31,7 @@ services:
       start_period: 5m
 
   dashboard:
-    image: zar-agent-session-ops-dashboard:0.10.0
+    image: zar-agent-session-ops-dashboard:0.11.0
     build:
       context: .
       dockerfile: docker/dashboard.Dockerfile

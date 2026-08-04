@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.0 - Background inventory refresh / Actualización en segundo plano
+
+- ES: añade `POST /api/refresh` y `GET /api/refresh` para iniciar un escaneo
+  Codex no bloqueante y consultar su estado.
+- EN: adds `POST /api/refresh` and `GET /api/refresh` to start a non-blocking
+  Codex scan and query its state.
+- ES: el dashboard inicia el escaneo, muestra progreso y resultado, recarga el
+  inventario al terminar y evita solicitudes duplicadas.
+- EN: the dashboard starts the scan, displays progress and result, reloads the
+  inventory on completion, and prevents duplicate requests.
+- Verificación / Verification: 12 pruebas Python, 3 pruebas Angular, refresco
+  real de 461 sesiones con API disponible y stack Docker 0.11 validado.
+- Detalles / Details: [docs/milestones/0.11.0.md](docs/milestones/0.11.0.md).
+
 ## 0.10.0 - Local Docker stack / Stack Docker local
 
 - ES: empaqueta la API y el dashboard en imágenes multi-stage reproducibles,

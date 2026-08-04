@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
-import { httpResource } from '@angular/common/http';
-import { Component, computed, signal } from '@angular/core';
+import { HttpClient, httpResource } from '@angular/common/http';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -8,6 +9,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { switchMap, takeWhile, timer } from 'rxjs';
 
 interface AgentSession {
   id: string;
@@ -36,6 +38,14 @@ interface BlockedResponse extends InventoryResponse {
 interface HealthResponse {
   status: string;
   version: string;
+}
+
+interface RefreshResponse {
+  status: 'idle' | 'running' | 'completed' | 'failed';
+  count: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
 }
 
 interface GitHubReference {
@@ -71,6 +81,8 @@ interface GitHubResponse {
   styleUrl: './app.scss',
 })
 export class App {
+  private readonly http = inject(HttpClient);
+  private readonly destroyRef = inject(DestroyRef);
   protected readonly displayedColumns = [
     'title',
     'agent',
@@ -85,6 +97,7 @@ export class App {
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(25);
   protected readonly selectedSession = signal<AgentSession | null>(null);
+  protected readonly refreshState = signal<RefreshResponse | null>(null);
   protected readonly health = httpResource<HealthResponse>(() => '/api/health');
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
@@ -115,19 +128,78 @@ export class App {
     return this.filteredSessions().slice(start, start + this.pageSize());
   });
   protected readonly loading = computed(
-    () => this.health.isLoading() || this.inventory.isLoading() || this.blocked.isLoading(),
+    () =>
+      this.refreshState()?.status === 'running' ||
+      this.health.isLoading() ||
+      this.inventory.isLoading() ||
+      this.blocked.isLoading(),
   );
   protected readonly failed = computed(
     () => !!(this.health.error() || this.inventory.error() || this.blocked.error()),
   );
 
   protected refresh(): void {
+    if (this.refreshState()?.status === 'running') {
+      return;
+    }
+    this.refreshState.set({
+      status: 'running',
+      count: null,
+      started_at: null,
+      finished_at: null,
+      error: null,
+    });
+    this.http
+      .post<RefreshResponse>('/api/refresh', {})
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (state) => {
+          this.refreshState.set(state);
+          if (state.status === 'running') {
+            this.pollRefresh();
+          } else if (state.status === 'completed') {
+            this.reloadViews();
+          }
+        },
+        error: () => this.refreshFailed(),
+      });
+  }
+
+  private pollRefresh(): void {
+    timer(0, 1000)
+      .pipe(
+        switchMap(() => this.http.get<RefreshResponse>('/api/refresh')),
+        takeWhile((state) => state.status === 'running', true),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (state) => {
+          this.refreshState.set(state);
+          if (state.status === 'completed') {
+            this.reloadViews();
+          }
+        },
+        error: () => this.refreshFailed(),
+      });
+  }
+
+  protected reloadViews(): void {
     this.health.reload();
     this.inventory.reload();
     this.blocked.reload();
     if (this.selectedSession()) {
       this.github.reload();
     }
+  }
+
+  private refreshFailed(): void {
+    this.refreshState.update((state) => ({
+      status: 'failed',
+      count: null,
+      started_at: state?.started_at ?? null,
+      finished_at: null,
+      error: 'No se pudo actualizar el inventario.',
+    }));
   }
 
   protected setAgent(value: string): void {

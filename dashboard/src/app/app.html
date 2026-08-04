@@ -29,9 +29,23 @@
         Revisa actividad, archivo y señales de bloqueo sin abrir las transcripciones.
       </p>
     </div>
-    <button mat-flat-button type="button" (click)="refresh()" [disabled]="loading()">
-      Actualizar
-    </button>
+    <div class="refresh-control">
+      <button mat-flat-button type="button" (click)="refresh()" [disabled]="loading()">
+        {{ refreshState()?.status === 'running' ? 'Actualizando…' : 'Actualizar' }}
+      </button>
+      @if (refreshState(); as refresh) {
+        @if (refresh.status === 'running') {
+          <span role="status">Escaneando sesiones en segundo plano</span>
+        } @else if (refresh.status === 'completed') {
+          <span role="status">
+            Inventario actualizado: {{ refresh.count }}
+            {{ refresh.count === 1 ? 'sesión' : 'sesiones' }}
+          </span>
+        } @else if (refresh.status === 'failed') {
+          <span class="refresh-error" role="alert">{{ refresh.error }}</span>
+        }
+      }
+    </div>
   </header>
 
   @if (failed()) {
@@ -40,7 +54,7 @@
         <h2>No se pudo cargar el inventario</h2>
         <p>Comprueba que la API local está ejecutándose en el puerto 8000.</p>
       </div>
-      <button mat-stroked-button type="button" (click)="refresh()">Reintentar</button>
+      <button mat-stroked-button type="button" (click)="reloadViews()">Reintentar</button>
     </section>
   } @else {
     <section class="metrics" aria-label="Resumen del inventario">

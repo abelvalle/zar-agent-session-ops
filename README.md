@@ -3,7 +3,7 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.10.0` ofrece un
+sesiones locales de agentes de programación. La versión `0.11.0` ofrece un
 inventario local de Codex y ChatGPT, detección conservadora de posibles bloqueos
 y relaciones verificadas con GitHub desde un dashboard Angular local.
 
@@ -27,6 +27,8 @@ y relaciones verificadas con GitHub desde un dashboard Angular local.
   de ChatGPT sin copiar las conversaciones a la base propia.
 - Empaqueta la API y el dashboard en un stack local reproducible con Docker
   Compose.
+- Actualiza el inventario mediante un escaneo Codex no bloqueante iniciado desde
+  la API o el dashboard.
 
 ## Inicio rápido
 
@@ -74,12 +76,16 @@ define `ZAR_DASHBOARD_PORT` antes de levantar el stack. `GITHUB_TOKEN` también
 es opcional; Compose lo transmite al entorno de la API y la aplicación no lo
 guarda.
 
+El botón `Actualizar` inicia un nuevo escaneo en segundo plano. La API continúa
+respondiendo durante el trabajo y evita ejecutar dos escaneos simultáneos.
+
 ## API local
 
-El servidor escucha exclusivamente en `127.0.0.1` y ofrece cuatro operaciones de
-solo lectura:
+El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 
 - `GET /api/health`: estado y versión.
+- `GET /api/refresh`: estado del último escaneo solicitado.
+- `POST /api/refresh`: inicia un escaneo Codex en segundo plano.
 - `GET /api/sessions`: inventario; admite los filtros `agent` y `status`.
 - `GET /api/blocked`: señal conservadora de posibles bloqueos.
 - `GET /api/sessions/{session_id}/github`: relaciones GitHub explícitas.
@@ -116,8 +122,8 @@ npm start
 Abre `http://127.0.0.1:4200`. El servidor de desarrollo redirige `/api/**` a
 la API local, por lo que no hace falta habilitar CORS. La interfaz incluye
 métricas de estado, filtros, paginación, revisión de posibles bloqueos, consulta
-GitHub bajo demanda y estados de carga, error y ausencia de datos. Se adapta a
-escritorio y móvil.
+GitHub bajo demanda, refresco real del inventario y estados de carga, error y
+ausencia de datos. Se adapta a escritorio y móvil.
 
 ## Relaciones con GitHub
 
@@ -259,7 +265,8 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 - La base propia contiene metadatos, no transcripciones.
 - Las conversaciones ChatGPT permanecen dentro del ZIP o JSON original.
 - El proyecto no consulta las bases SQLite internas de Codex.
-- La API es GET-only, se liga a loopback y omite las rutas de archivos fuente.
+- La API se liga a loopback y omite las rutas de archivos fuente. Su única
+  mutación operativa, `POST /api/refresh`, reescribe solo el índice SQLite propio.
 - La integración GitHub solo envía identificadores explícitos a `api.github.com`.
 - `--apply` es obligatorio para mover archivos.
 - `maintain` tampoco mueve archivos sin `--apply-policy`.
@@ -292,6 +299,4 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 ## Próximos hitos
 
 - Adaptadores de Claude Code y OpenCode cuando existan fixtures reales.
-- Actualización del inventario en segundo plano cuando el escaneo bajo demanda
-  lo justifique.
 - Paginación de servidor y autenticación cuando el uso deje de ser local.

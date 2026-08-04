@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +14,7 @@ from .core import (
     blocked_report,
     DEFAULT_CONFIG,
     DEFAULT_DATABASE,
+    DEFAULT_SOURCE,
     extract_chatgpt_transcript,
     extract_transcript,
     find_session,
@@ -32,7 +32,6 @@ from .core import (
 from .github import session_github_references
 
 
-DEFAULT_SOURCE = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 DEFAULT_REPORT_DIR = DEFAULT_DATABASE.parent / "reports"
 
 
@@ -91,8 +90,9 @@ def _parser() -> argparse.ArgumentParser:
     maintain.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIR)
     maintain.add_argument("--apply-policy", action="store_true")
 
-    serve = commands.add_parser("serve", help="serve the local read-only API")
+    serve = commands.add_parser("serve", help="serve the local API")
     serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     return parser
 
 
@@ -237,7 +237,9 @@ def main(argv: list[str] | None = None) -> int:
             from .api import create_app
 
             uvicorn.run(
-                create_app(args.db, args.config), host="127.0.0.1", port=args.port
+                create_app(args.db, args.config, args.source),
+                host="127.0.0.1",
+                port=args.port,
             )
         return 0
     except (

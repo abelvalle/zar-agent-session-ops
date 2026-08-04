@@ -1,21 +1,30 @@
 from __future__ import annotations
 
+import logging
 import os
+from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 
 from . import __version__
 from .core import (
     DEFAULT_CONFIG,
     DEFAULT_DATABASE,
+    DEFAULT_SOURCE,
     Session,
     blocked_candidates,
     find_session,
     load_policy,
     load_sessions,
+    scan_codex,
+    sync_sessions,
 )
 from .github import session_github_references
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _session_data(session: Session) -> dict[str, object]:
@@ -36,14 +45,64 @@ def _session_data(session: Session) -> dict[str, object]:
 
 
 def create_app(
-    database: Path = DEFAULT_DATABASE, config: Path = DEFAULT_CONFIG
+    database: Path = DEFAULT_DATABASE,
+    config: Path = DEFAULT_CONFIG,
+    source: Path = DEFAULT_SOURCE,
 ) -> FastAPI:
     app = FastAPI(title="Zar Agent Session Ops", version=__version__)
+    refresh_lock = Lock()
+    refresh_state: dict[str, object] = {
+        "status": "idle",
+        "count": None,
+        "started_at": None,
+        "finished_at": None,
+        "error": None,
+    }
+
+    # ponytail: process-local state is enough for the single-worker local API.
+    def run_refresh() -> None:
+        try:
+            items = scan_codex(source)
+            sync_sessions(database, items)
+        except Exception:
+            LOGGER.exception("Session refresh failed")
+            with refresh_lock:
+                refresh_state.update(
+                    status="failed",
+                    finished_at=datetime.now(timezone.utc).isoformat(),
+                    error="refresh failed; check API logs",
+                )
+        else:
+            with refresh_lock:
+                refresh_state.update(
+                    status="completed",
+                    count=len(items),
+                    finished_at=datetime.now(timezone.utc).isoformat(),
+                )
 
     @app.get("/health", include_in_schema=False)
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
+
+    @app.get("/api/refresh")
+    def refresh_status() -> dict[str, object]:
+        with refresh_lock:
+            return dict(refresh_state)
+
+    @app.post("/api/refresh", status_code=202)
+    def refresh(background_tasks: BackgroundTasks) -> dict[str, object]:
+        with refresh_lock:
+            if refresh_state["status"] != "running":
+                refresh_state.update(
+                    status="running",
+                    count=None,
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                    finished_at=None,
+                    error=None,
+                )
+                background_tasks.add_task(run_refresh)
+            return dict(refresh_state)
 
     @app.get("/sessions", include_in_schema=False)
     @app.get("/api/sessions")
@@ -93,4 +152,5 @@ def create_app(
 app = create_app(
     Path(os.environ.get("ZAR_SESSION_DB", DEFAULT_DATABASE)),
     Path(os.environ.get("ZAR_SESSION_CONFIG", DEFAULT_CONFIG)),
+    Path(os.environ.get("ZAR_SESSION_SOURCE", DEFAULT_SOURCE)),
 )

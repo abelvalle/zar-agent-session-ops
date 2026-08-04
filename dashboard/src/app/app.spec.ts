@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.10.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.11.0' });
     http.expectOne('/api/sessions').flush({
       count: 2,
       sessions: [
@@ -39,7 +39,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Gobierno de sesiones');
-    expect(page.textContent).toContain('API 0.10.0');
+    expect(page.textContent).toContain('API 0.11.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Posible bloqueo');
@@ -82,6 +82,53 @@ describe('App', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'No se pudo cargar el inventario',
     );
+  });
+
+  it('refreshes the inventory after the background scan completes', async () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.11.0' });
+    http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
+    http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const page = fixture.nativeElement as HTMLElement;
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Actualizar'))
+      ?.click();
+    http.expectOne('/api/refresh').flush({
+      status: 'running',
+      count: null,
+      started_at: '2026-08-04T10:00:00Z',
+      finished_at: null,
+      error: null,
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+    http.expectOne('/api/refresh').flush({
+      status: 'completed',
+      count: 1,
+      started_at: '2026-08-04T10:00:00Z',
+      finished_at: '2026-08-04T10:00:01Z',
+      error: null,
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.11.0' });
+    http.expectOne('/api/sessions').flush({
+      count: 1,
+      sessions: [session('refreshed-id', 'Fresh work', 'active')],
+    });
+    http.expectOne('/api/blocked').flush({
+      count: 0,
+      threshold_hours: 24,
+      sessions: [],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(page.textContent).toContain('Inventario actualizado: 1 sesión');
+    expect(page.textContent).toContain('Fresh work');
   });
 });
 

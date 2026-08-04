@@ -3,7 +3,8 @@ FROM python:3.13.11-slim-trixie@sha256:2b9c9803c6a287cafa0a8c917211dddd23dcd2016
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     ZAR_SESSION_CONFIG=/data/config.toml \
-    ZAR_SESSION_DB=/data/sessions.db
+    ZAR_SESSION_DB=/data/sessions.db \
+    ZAR_SESSION_SOURCE=/codex
 
 WORKDIR /app
 

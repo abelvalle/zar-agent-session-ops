@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sqlite3
 import tomllib
@@ -16,6 +17,7 @@ from urllib.request import Request, urlopen
 
 DEFAULT_DATABASE = Path.home() / ".zar-agent-session-ops" / "sessions.db"
 DEFAULT_CONFIG = Path.home() / ".zar-agent-session-ops" / "config.toml"
+DEFAULT_SOURCE = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 
 
 @dataclass(frozen=True)
