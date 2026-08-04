@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.8.0` provides a local Codex and ChatGPT inventory, conservative blocked
-session signals, and a local Angular dashboard over a read-only FastAPI API.
+`0.9.0` provides a local Codex and ChatGPT inventory, conservative blocked
+session signals, and verified GitHub relationships in a local Angular dashboard.
 
 ## Available features
 
@@ -18,6 +18,7 @@ session signals, and a local Angular dashboard over a read-only FastAPI API.
 - Runs scanning, policy evaluation, and reports in one schedulable cycle.
 - Exposes health, sessions, and blocked signals through a local API.
 - Presents metrics, filters, pagination, and blocked signals in a responsive dashboard.
+- Resolves explicit GitHub Issue, Pull Request, and commit links.
 - Summarizes a session with a local Ollama model.
 - Archives individual sessions or applies a configurable retention policy.
 - Simulates every archive operation unless `--apply` is supplied.
@@ -36,6 +37,7 @@ python -m pip install -e .
 python -m zar_agent_session_ops scan
 python -m zar_agent_session_ops list --stale-days 7
 python -m zar_agent_session_ops show SESSION_ID
+python -m zar_agent_session_ops github SESSION_ID
 python -m zar_agent_session_ops report --output sessions.md
 python -m zar_agent_session_ops weekly --output weekly-sessions.md
 python -m zar_agent_session_ops blocked --output blocked-sessions.md
@@ -44,12 +46,13 @@ python -m zar_agent_session_ops maintain
 
 ## Local API
 
-The server listens exclusively on `127.0.0.1` and provides three read-only
+The server listens exclusively on `127.0.0.1` and provides four read-only
 operations:
 
 - `GET /api/health`: status and version.
 - `GET /api/sessions`: inventory with optional `agent` and `status` filters.
 - `GET /api/blocked`: conservative potentially blocked signal.
+- `GET /api/sessions/{session_id}/github`: explicit GitHub relationships.
 
 ```powershell
 python -m zar_agent_session_ops serve
@@ -80,8 +83,28 @@ npm start
 
 Open `http://127.0.0.1:4200`. The development server proxies `/api/**` to the
 local API, so CORS does not need to be enabled. The interface provides status
-metrics, agent and status filters, pagination, potentially blocked-session
-review, plus loading, error, and empty states. It adapts to desktop and mobile.
+metrics, filters, pagination, potentially blocked-session review, on-demand
+GitHub lookup, plus loading, error, and empty states. It adapts to desktop and
+mobile.
+
+## GitHub relationships
+
+The command and dashboard find explicit Issue, Pull Request, and commit links
+within the latest 200,000 characters of user and assistant messages. They then
+query `api.github.com` for title and state:
+
+```powershell
+python -m zar_agent_session_ops github SESSION_ID
+```
+
+Public repositories work without authentication. For private resources or a
+higher request limit, set `GITHUB_TOKEN` in the environment before starting the
+command or API. The token is neither stored nor returned to the dashboard.
+
+A relationship is created only when the conversation contains a complete
+GitHub URL. Ambiguous references such as `#123` and time-based commit attribution
+are deliberately ignored. The transcript remains local: GitHub receives only
+the owner, repository, and number or SHA already present in the URL.
 
 ## Import a ChatGPT data export
 
@@ -201,6 +224,7 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 - ChatGPT conversations remain in the original ZIP or JSON.
 - The project does not query Codex's internal SQLite databases.
 - The API is GET-only, loopback-bound, and omits source-file paths.
+- GitHub integration sends only explicit identifiers to `api.github.com`.
 - `--apply` is required before files can move.
 - `maintain` also requires `--apply-policy` before files can move.
 - Summaries are sent only to local Ollama.
@@ -226,5 +250,5 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 ## Next milestones
 
 - Claude Code and OpenCode adapters once real fixtures are available.
-- GitHub Issues and Pull Requests integration.
 - Reproducible Docker packaging once a deployment workflow exists.
+- Server-side pagination and authentication when usage moves beyond loopback.

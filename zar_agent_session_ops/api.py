@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from . import __version__
 from .core import (
@@ -10,9 +10,11 @@ from .core import (
     DEFAULT_DATABASE,
     Session,
     blocked_candidates,
+    find_session,
     load_policy,
     load_sessions,
 )
+from .github import session_github_references
 
 
 def _session_data(session: Session) -> dict[str, object]:
@@ -66,6 +68,22 @@ def create_app(
             "count": len(items),
             "threshold_hours": policy.blocked_after_hours,
             "sessions": [_session_data(item) for item in items],
+        }
+
+    @app.get("/api/sessions/{session_id}/github")
+    def github(session_id: str) -> dict[str, object]:
+        try:
+            session = find_session(database, session_id)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        try:
+            references = session_github_references(session)
+        except (FileNotFoundError, OSError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return {
+            "session_id": session.session_id,
+            "count": len(references),
+            "references": references,
         }
 
     return app

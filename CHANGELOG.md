@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.9.0 - GitHub relationships / Relaciones con GitHub
+
+- ES: detecta enlaces explícitos a Issues, Pull Requests y commits en sesiones
+  Codex o ChatGPT y resuelve título y estado mediante la API REST de GitHub.
+- EN: detects explicit Issue, Pull Request, and commit links in Codex or ChatGPT
+  sessions and resolves title and state through GitHub's REST API.
+- ES: añade el comando `github`, un endpoint por sesión y consulta bajo demanda
+  desde el dashboard; `GITHUB_TOKEN` es opcional y nunca se persiste.
+- EN: adds the `github` command, a per-session endpoint, and on-demand dashboard
+  lookup; `GITHUB_TOKEN` is optional and never persisted.
+- Verificación / Verification: 11 pruebas Python, 2 pruebas Angular, build de
+  producción y ejecución real sobre 461 sesiones con 8 commits resueltos.
+- Detalles / Details: [docs/milestones/0.9.0.md](docs/milestones/0.9.0.md).
+
 ## 0.8.0 - Local Angular dashboard / Dashboard Angular local
 
 - ES: añade un dashboard Angular 22 y Material con métricas, filtros,

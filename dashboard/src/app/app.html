@@ -140,6 +140,21 @@
             <td mat-cell *matCellDef="let session">{{ formatBytes(session.size_bytes) }}</td>
           </ng-container>
 
+          <ng-container matColumnDef="github">
+            <th mat-header-cell *matHeaderCellDef>GitHub</th>
+            <td mat-cell *matCellDef="let session">
+              <button
+                mat-button
+                type="button"
+                class="github-button"
+                [attr.aria-label]="'Consultar GitHub para ' + (session.title || session.id)"
+                (click)="loadGitHub(session)"
+              >
+                Consultar
+              </button>
+            </td>
+          </ng-container>
+
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
           <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
           <tr class="mat-row empty-row" *matNoDataRow>
@@ -158,6 +173,52 @@
         (page)="setPage($event)"
       />
     </section>
+
+    @if (selectedSession(); as selected) {
+      <section class="github-panel" aria-labelledby="github-title" aria-live="polite">
+        <div class="github-heading">
+          <div>
+            <p class="page-kicker">Relaciones explícitas</p>
+            <h2 id="github-title">GitHub · {{ selected.title || selected.id }}</h2>
+          </div>
+          <button mat-button type="button" (click)="closeGitHub()">Cerrar</button>
+        </div>
+
+        @if (github.isLoading()) {
+          <mat-progress-bar mode="indeterminate" aria-label="Consultando GitHub" />
+        } @else if (github.error()) {
+          <p class="github-message github-message--error">
+            No se pudo consultar GitHub. Revisa la conexión o el token configurado.
+          </p>
+        } @else if (github.value(); as result) {
+          @if (result.count === 0) {
+            <p class="github-message">
+              No hay enlaces explícitos a Issues, Pull Requests o commits en esta sesión.
+            </p>
+          } @else {
+            <ul class="github-list">
+              @for (reference of result.references; track reference.url) {
+                <li>
+                  <div>
+                    <span class="github-kind">
+                      {{ githubKindName(reference.kind) }} · {{ reference.identifier }}
+                    </span>
+                    <a [href]="reference.url" target="_blank" rel="noopener noreferrer">
+                      {{ reference.title || reference.owner + '/' + reference.repository }}
+                    </a>
+                  </div>
+                  @if (reference.error) {
+                    <span class="github-reference-error">No disponible</span>
+                  } @else if (reference.state) {
+                    <span class="github-state">{{ githubStateName(reference.state) }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        }
+      </section>
+    }
 
     <section class="blocked-panel" aria-labelledby="blocked-title">
       <div>

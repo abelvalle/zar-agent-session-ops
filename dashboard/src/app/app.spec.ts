@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.8.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.9.0' });
     http.expectOne('/api/sessions').flush({
       count: 2,
       sessions: [
@@ -39,12 +39,34 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Gobierno de sesiones');
-    expect(page.textContent).toContain('API 0.8.0');
+    expect(page.textContent).toContain('API 0.9.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Posible bloqueo');
     expect(page.textContent).toContain('1 - 2 de 2');
     expect(page.querySelector('mat-paginator')).toBeTruthy();
+
+    page.querySelector<HTMLButtonElement>('.github-button')?.click();
+    fixture.detectChanges();
+    http.expectOne('/api/sessions/active-id/github').flush({
+      session_id: 'active-id',
+      count: 1,
+      references: [
+        {
+          kind: 'pull',
+          owner: 'acme',
+          repository: 'widgets',
+          identifier: '34',
+          url: 'https://github.com/acme/widgets/pull/34',
+          title: 'Ship the widget',
+          state: 'merged',
+        },
+      ],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.textContent).toContain('Ship the widget');
+    expect(page.textContent).toContain('Fusionada');
   });
 
   it('renders a retry state when the API is unavailable', async () => {

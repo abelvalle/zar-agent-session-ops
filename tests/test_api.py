@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -41,7 +42,7 @@ class ApiTest(unittest.TestCase):
 
             with TestClient(create_app(database, config)) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.8.0"},
+                    {"status": "ok", "version": "0.9.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -53,6 +54,32 @@ class ApiTest(unittest.TestCase):
                 blocked = client.get("/api/blocked").json()
                 self.assertEqual(1, blocked["count"])
                 self.assertEqual(24, blocked["threshold_hours"])
+                with patch(
+                    "zar_agent_session_ops.api.session_github_references",
+                    return_value=[
+                        {
+                            "kind": "issue",
+                            "owner": "acme",
+                            "repository": "widgets",
+                            "identifier": "12",
+                            "url": "https://github.com/acme/widgets/issues/12",
+                            "title": "Fix the widget",
+                            "state": "open",
+                        }
+                    ],
+                ):
+                    github = client.get("/api/sessions/codex-1/github").json()
+                self.assertEqual(1, github["count"])
+                self.assertEqual("Fix the widget", github["references"][0]["title"])
+                with patch(
+                    "zar_agent_session_ops.api.session_github_references",
+                    side_effect=FileNotFoundError("source missing"),
+                ):
+                    self.assertEqual(
+                        422,
+                        client.get("/api/sessions/codex-1/github").status_code,
+                    )
+                self.assertEqual(404, client.get("/api/sessions/missing/github").status_code)
                 schema = client.get("/openapi.json").json()
                 self.assertTrue(
                     all(
@@ -61,7 +88,12 @@ class ApiTest(unittest.TestCase):
                     )
                 )
                 self.assertEqual(
-                    {"/api/health", "/api/sessions", "/api/blocked"},
+                    {
+                        "/api/health",
+                        "/api/sessions",
+                        "/api/blocked",
+                        "/api/sessions/{session_id}/github",
+                    },
                     set(schema["paths"]),
                 )
                 self.assertEqual("ok", client.get("/health").json()["status"])

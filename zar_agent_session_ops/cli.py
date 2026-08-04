@@ -29,6 +29,7 @@ from .core import (
     sync_sessions,
     weekly_report,
 )
+from .github import session_github_references
 
 
 DEFAULT_SOURCE = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
@@ -49,6 +50,12 @@ def _parser() -> argparse.ArgumentParser:
 
     show = commands.add_parser("show", help="show one indexed session")
     show.add_argument("session_id")
+
+    github = commands.add_parser(
+        "github", help="resolve explicit GitHub links from one session"
+    )
+    github.add_argument("session_id")
+    github.add_argument("--max-chars", type=int, default=200_000)
 
     report = commands.add_parser("report", help="write a Markdown report")
     report.add_argument("--output", type=Path, default=Path("sessions.md"))
@@ -127,6 +134,20 @@ def main(argv: list[str] | None = None) -> int:
                         "source_entry": session.source_entry,
                         "last_event_type": session.last_event_type,
                     },
+                    indent=2,
+                )
+            )
+        elif args.command == "github":
+            session = find_session(args.db, args.session_id)
+            references = session_github_references(session, args.max_chars)
+            print(
+                json.dumps(
+                    {
+                        "session_id": session.session_id,
+                        "count": len(references),
+                        "references": references,
+                    },
+                    ensure_ascii=False,
                     indent=2,
                 )
             )

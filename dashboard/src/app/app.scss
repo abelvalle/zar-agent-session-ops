@@ -271,6 +271,75 @@ mat-paginator {
   background: var(--mat-sys-surface-container-low);
 }
 
+.github-panel {
+  margin-top: 28px;
+  overflow: hidden;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 16px;
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.github-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.github-heading .page-kicker,
+.github-heading h2 {
+  margin-bottom: 0;
+}
+
+.github-list {
+  margin: 0;
+  padding: 0 24px;
+  list-style: none;
+}
+
+.github-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.github-list li:last-child {
+  border-bottom: 0;
+}
+
+.github-list a {
+  display: block;
+  margin-top: 4px;
+  color: var(--mat-sys-primary);
+  font-weight: 650;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.github-kind,
+.github-state,
+.github-reference-error {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.github-reference-error,
+.github-message--error {
+  color: var(--mat-sys-error);
+}
+
+.github-message {
+  margin: 0;
+  padding: 28px 24px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
 .blocked-panel p,
 .message p {
   margin-bottom: 0;
@@ -343,6 +412,11 @@ code {
   .message button {
     justify-self: start;
   }
+
+  .github-heading,
+  .github-list li {
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 680px) {
@@ -367,6 +441,7 @@ code {
   }
 
   .section-heading,
+  .github-heading,
   .blocked-panel,
   .message {
     padding: 20px;
@@ -378,6 +453,16 @@ code {
   }
 
   .session-table {
-    min-width: 680px;
+    min-width: 760px;
+  }
+
+  .github-list {
+    padding-inline: 20px;
+  }
+
+  .github-list li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
   }
 }

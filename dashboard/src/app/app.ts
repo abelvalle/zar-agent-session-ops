@@ -38,6 +38,23 @@ interface HealthResponse {
   version: string;
 }
 
+interface GitHubReference {
+  kind: 'issue' | 'pull' | 'commit';
+  owner: string;
+  repository: string;
+  identifier: string;
+  url: string;
+  title?: string;
+  state?: string;
+  error?: string;
+}
+
+interface GitHubResponse {
+  session_id: string;
+  count: number;
+  references: GitHubReference[];
+}
+
 @Component({
   selector: 'app-root',
   imports: [
@@ -61,14 +78,20 @@ export class App {
     'repository',
     'last_activity_at',
     'size_bytes',
+    'github',
   ];
   protected readonly agentFilter = signal('all');
   protected readonly statusFilter = signal('all');
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(25);
+  protected readonly selectedSession = signal<AgentSession | null>(null);
   protected readonly health = httpResource<HealthResponse>(() => '/api/health');
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
+  protected readonly github = httpResource<GitHubResponse>(() => {
+    const session = this.selectedSession();
+    return session ? `/api/sessions/${encodeURIComponent(session.id)}/github` : undefined;
+  });
 
   protected readonly sessions = computed(() => this.inventory.value()?.sessions ?? []);
   protected readonly agents = computed(() =>
@@ -102,6 +125,9 @@ export class App {
     this.health.reload();
     this.inventory.reload();
     this.blocked.reload();
+    if (this.selectedSession()) {
+      this.github.reload();
+    }
   }
 
   protected setAgent(value: string): void {
@@ -119,12 +145,31 @@ export class App {
     this.pageSize.set(event.pageSize);
   }
 
+  protected loadGitHub(session: AgentSession): void {
+    this.selectedSession.set(session);
+  }
+
+  protected closeGitHub(): void {
+    this.selectedSession.set(null);
+  }
+
   protected agentName(agent: string): string {
     return agent === 'chatgpt' ? 'ChatGPT' : agent === 'codex' ? 'Codex' : agent;
   }
 
   protected statusName(status: string): string {
     return status === 'active' ? 'Activa' : status === 'archived' ? 'Archivada' : status;
+  }
+
+  protected githubKindName(kind: GitHubReference['kind']): string {
+    return kind === 'issue' ? 'Issue' : kind === 'pull' ? 'Pull request' : 'Commit';
+  }
+
+  protected githubStateName(state: string): string {
+    return (
+      { open: 'Abierta', closed: 'Cerrada', merged: 'Fusionada', available: 'Disponible' }[state] ??
+      state
+    );
   }
 
   protected formatBytes(bytes: number): string {
