@@ -9,22 +9,27 @@ from pathlib import Path
 from .core import (
     age_days,
     archive_session,
+    archive_sessions,
     find_session,
     format_size,
     load_sessions,
+    load_policy,
     markdown_report,
     scan_codex,
     sync_sessions,
+    policy_candidates,
 )
 
 
 DEFAULT_SOURCE = Path.home() / ".codex" / "sessions"
 DEFAULT_DATABASE = Path.home() / ".zar-agent-session-ops" / "sessions.db"
+DEFAULT_CONFIG = Path.home() / ".zar-agent-session-ops" / "config.toml"
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="zar-session")
     parser.add_argument("--db", type=Path, default=DEFAULT_DATABASE)
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     commands = parser.add_subparsers(dest="command", required=True)
 
     scan = commands.add_parser("scan", help="index local Codex sessions")
@@ -44,6 +49,9 @@ def _parser() -> argparse.ArgumentParser:
     archive.add_argument("session_id")
     archive.add_argument("--archive-dir", type=Path, required=True)
     archive.add_argument("--apply", action="store_true")
+
+    policy = commands.add_parser("policy", help="archive sessions matching the policy")
+    policy.add_argument("--apply", action="store_true")
     return parser
 
 
@@ -90,7 +98,15 @@ def main(argv: list[str] | None = None) -> int:
             )
             action = "Archived" if args.apply else "Dry run"
             print(f"{action}: {source} -> {destination}")
+        elif args.command == "policy":
+            policy = load_policy(args.config)
+            sessions = policy_candidates(load_sessions(args.db), policy)
+            plans = archive_sessions(args.db, sessions, policy.archive_dir, args.apply)
+            action = "Archived" if args.apply else "Candidate"
+            for source, destination in plans:
+                print(f"{action}: {source} -> {destination}")
+            print(f"{action} sessions: {len(plans)}")
         return 0
-    except (FileNotFoundError, FileExistsError, LookupError, OSError) as error:
+    except (FileNotFoundError, FileExistsError, LookupError, OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 1

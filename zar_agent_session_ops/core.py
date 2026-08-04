@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import sqlite3
+import tomllib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,12 @@ class Session:
     last_activity_at: datetime
     size_bytes: int
     event_count: int
+
+
+@dataclass(frozen=True)
+class Policy:
+    archive_after_days: int
+    archive_dir: Path
 
 
 @contextmanager
@@ -163,6 +170,36 @@ def age_days(session: Session, now: datetime | None = None) -> int:
     return max(0, int((current - session.last_activity_at).total_seconds() // 86_400))
 
 
+def load_policy(path: Path) -> Policy:
+    default = Policy(30, Path.home() / ".zar-agent-session-ops" / "archive")
+    if not path.is_file():
+        return default
+
+    with path.open("rb") as stream:
+        values = tomllib.load(stream).get("policy", {})
+    days = values.get("archive_after_days", default.archive_after_days)
+    archive_dir = values.get("archive_dir", str(default.archive_dir))
+    if isinstance(days, bool) or not isinstance(days, int) or days < 1:
+        raise ValueError("policy.archive_after_days must be a positive integer")
+    if not isinstance(archive_dir, str) or not archive_dir.strip():
+        raise ValueError("policy.archive_dir must be a non-empty path")
+
+    resolved_archive = Path(archive_dir).expanduser()
+    if not resolved_archive.is_absolute():
+        resolved_archive = path.parent / resolved_archive
+    return Policy(days, resolved_archive.resolve())
+
+
+def policy_candidates(
+    sessions: list[Session], policy: Policy, now: datetime | None = None
+) -> list[Session]:
+    return [
+        session
+        for session in sessions
+        if age_days(session, now) >= policy.archive_after_days
+    ]
+
+
 def format_size(size_bytes: int) -> str:
     size = float(size_bytes)
     for unit in ("B", "KiB", "MiB", "GiB"):
@@ -200,18 +237,45 @@ def markdown_report(
     return "\n".join(lines) + "\n"
 
 
+def archive_sessions(
+    database: Path,
+    sessions: list[Session],
+    archive_dir: Path,
+    apply: bool = False,
+) -> list[tuple[Path, Path]]:
+    plans = [(session.path, archive_dir.resolve() / session.path.name) for session in sessions]
+    if len({destination for _, destination in plans}) != len(plans):
+        raise FileExistsError("Multiple sessions resolve to the same archive destination")
+    for source, destination in plans:
+        if not source.is_file():
+            raise FileNotFoundError(f"Session file not found: {source}")
+        if destination.exists():
+            raise FileExistsError(f"Archive destination already exists: {destination}")
+    if not apply:
+        return plans
+
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    moved: list[tuple[Path, Path]] = []
+    try:
+        for source, destination in plans:
+            shutil.move(str(source), destination)
+            moved.append((source, destination))
+        with _connect(database) as connection:
+            connection.executemany(
+                "DELETE FROM sessions WHERE path = ?",
+                [(str(source),) for source, _ in plans],
+            )
+    except (OSError, sqlite3.Error):
+        for source, destination in reversed(moved):
+            if destination.exists() and not source.exists():
+                shutil.move(str(destination), source)
+        raise
+    return plans
+
+
 def archive_session(
     database: Path, session_id: str, archive_dir: Path, apply: bool = False
 ) -> tuple[Path, Path]:
-    session = find_session(database, session_id)
-    destination = archive_dir.resolve() / session.path.name
-    if destination.exists():
-        raise FileExistsError(f"Archive destination already exists: {destination}")
-    if not apply:
-        return session.path, destination
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(session.path), destination)
-    with _connect(database) as connection:
-        connection.execute("DELETE FROM sessions WHERE path = ?", (str(session.path),))
-    return session.path, destination
+    return archive_sessions(
+        database, [find_session(database, session_id)], archive_dir, apply
+    )[0]

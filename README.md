@@ -22,6 +22,22 @@ python -m zar_agent_session_ops archive SESSION_ID --archive-dir C:\agent-sessio
 python -m zar_agent_session_ops archive SESSION_ID --archive-dir C:\agent-session-archive --apply
 ```
 
+Retention policies use `%USERPROFILE%\.zar-agent-session-ops\config.toml`:
+
+```toml
+[policy]
+archive_after_days = 30
+archive_dir = "archive"
+```
+
+Relative archive paths are resolved next to the config file. Policy execution
+is also a dry run unless `--apply` is supplied:
+
+```powershell
+python -m zar_agent_session_ops policy
+python -m zar_agent_session_ops policy --apply
+```
+
 By default the scanner reads `%USERPROFILE%\.codex\sessions` and stores its
 index in `%USERPROFILE%\.zar-agent-session-ops\sessions.db`. Both paths are
 configurable with `--source` and `--db`.
@@ -35,7 +51,7 @@ configurable with `--source` and `--db`.
 
 - Claude Code and OpenCode adapters, once real session fixtures are available.
 - Optional local summaries through Ollama.
-- Configurable retention policies and scheduled reports.
+- Scheduled reports.
 - FastAPI dashboard and GitHub integration after the local workflow is proven.
 
 Session contents stay local. This milestone stores metadata only and never

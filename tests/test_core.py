@@ -5,9 +5,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from zar_agent_session_ops.core import (
+    Policy,
     archive_session,
+    archive_sessions,
     load_sessions,
+    load_policy,
     markdown_report,
+    policy_candidates,
     scan_codex,
     sync_sessions,
 )
@@ -61,6 +65,49 @@ class SessionFlowTest(unittest.TestCase):
             self.assertFalse(session_file.exists())
             self.assertTrue(destination.exists())
             self.assertEqual([], load_sessions(database))
+
+    def test_policy_loads_candidates_and_archives_as_one_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "sessions"
+            source.mkdir()
+            for session_id, day in (("old", "01"), ("recent", "19")):
+                (source / f"{session_id}.jsonl").write_text(
+                    json.dumps(
+                        {
+                            "timestamp": f"2026-07-{day}T10:00:00Z",
+                            "type": "session_meta",
+                            "payload": {"id": session_id, "cwd": "D:/repo"},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            config = root / "config.toml"
+            config.write_text(
+                '[policy]\narchive_after_days = 7\narchive_dir = "archive"\n',
+                encoding="utf-8",
+            )
+            policy = load_policy(config)
+            self.assertEqual(Policy(7, root / "archive"), policy)
+
+            database = root / "sessions.db"
+            sync_sessions(database, scan_codex(source))
+            candidates = policy_candidates(
+                load_sessions(database),
+                policy,
+                now=datetime(2026, 7, 20, tzinfo=timezone.utc),
+            )
+            self.assertEqual(["old"], [session.session_id for session in candidates])
+
+            plans = archive_sessions(database, candidates, policy.archive_dir)
+            self.assertEqual(1, len(plans))
+            self.assertTrue(plans[0][0].exists())
+
+            archive_sessions(database, candidates, policy.archive_dir, apply=True)
+            self.assertFalse(plans[0][0].exists())
+            self.assertTrue(plans[0][1].exists())
+            self.assertEqual(["recent"], [item.session_id for item in load_sessions(database)])
 
 
 if __name__ == "__main__":
