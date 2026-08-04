@@ -1,0 +1,10 @@
+.git
+.gitignore
+.venv
+**/__pycache__
+**/*.pyc
+*.db
+.env
+dashboard/.angular
+dashboard/dist
+dashboard/node_modules

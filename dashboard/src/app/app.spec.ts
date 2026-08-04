@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.9.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.10.0' });
     http.expectOne('/api/sessions').flush({
       count: 2,
       sessions: [
@@ -39,7 +39,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Gobierno de sesiones');
-    expect(page.textContent).toContain('API 0.9.0');
+    expect(page.textContent).toContain('API 0.10.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Posible bloqueo');

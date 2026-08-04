@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -89,4 +90,7 @@ def create_app(
     return app
 
 
-app = create_app()
+app = create_app(
+    Path(os.environ.get("ZAR_SESSION_DB", DEFAULT_DATABASE)),
+    Path(os.environ.get("ZAR_SESSION_CONFIG", DEFAULT_CONFIG)),
+)

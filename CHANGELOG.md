@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.0 - Local Docker stack / Stack Docker local
+
+- ES: empaqueta la API y el dashboard en imágenes multi-stage reproducibles,
+  fijadas por versión y digest, y las coordina con Docker Compose.
+- EN: packages the API and dashboard in reproducible multi-stage images pinned
+  by version and digest, coordinated through Docker Compose.
+- ES: monta Codex en solo lectura, conserva SQLite en un volumen, ejecuta la API
+  sin privilegios y publica únicamente el dashboard en loopback.
+- EN: mounts Codex read-only, persists SQLite in a volume, runs the API without
+  privileges, and publishes only the dashboard on loopback.
+- Verificación / Verification: 11 pruebas Python, 2 pruebas Angular, auditoría
+  npm sin vulnerabilidades, build de ambas imágenes y arranque limpio sobre 461
+  sesiones en 153 segundos.
+- Detalles / Details: [docs/milestones/0.10.0.md](docs/milestones/0.10.0.md).
+
 ## 0.9.0 - GitHub relationships / Relaciones con GitHub
 
 - ES: detecta enlaces explícitos a Issues, Pull Requests y commits en sesiones

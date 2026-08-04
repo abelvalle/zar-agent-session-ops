@@ -1,0 +1,44 @@
+name: zar-agent-session-ops
+
+services:
+  api:
+    image: zar-agent-session-ops-api:0.10.0
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      ZAR_SESSION_CONFIG: /data/config.toml
+      ZAR_SESSION_DB: /data/sessions.db
+    volumes:
+      - type: bind
+        source: ${CODEX_HOME:?Set CODEX_HOME to the local .codex directory}
+        target: /codex
+        read_only: true
+      - session-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5m
+
+  dashboard:
+    image: zar-agent-session-ops-dashboard:0.10.0
+    build:
+      context: .
+      dockerfile: docker/dashboard.Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ZAR_DASHBOARD_PORT:-4200}:8080"
+
+volumes:
+  session-data:

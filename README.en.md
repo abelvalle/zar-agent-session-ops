@@ -3,7 +3,7 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.9.0` provides a local Codex and ChatGPT inventory, conservative blocked
+`0.10.0` provides a local Codex and ChatGPT inventory, conservative blocked
 session signals, and verified GitHub relationships in a local Angular dashboard.
 
 ## Available features
@@ -24,6 +24,7 @@ session signals, and verified GitHub relationships in a local Angular dashboard.
 - Simulates every archive operation unless `--apply` is supplied.
 - Imports metadata and on-demand transcripts from an official ChatGPT ZIP or
   JSON without copying conversations into the application database.
+- Packages the API and dashboard as a reproducible local Docker Compose stack.
 
 ## Quick start
 
@@ -43,6 +44,31 @@ python -m zar_agent_session_ops weekly --output weekly-sessions.md
 python -m zar_agent_session_ops blocked --output blocked-sessions.md
 python -m zar_agent_session_ops maintain
 ```
+
+## Docker Compose
+
+Docker Engine with Compose is required. In PowerShell, point the stack to the
+local Codex directory and start it:
+
+```powershell
+$env:CODEX_HOME = "$HOME\.codex"
+docker compose up --build -d
+```
+
+Open `http://127.0.0.1:4200`. On every start, the API scans the read-only
+`/codex` mount before becoming healthy; large inventories on Docker Desktop can
+take several minutes. The dashboard is the only published service and proxies
+`/api/**` to the API through the Compose network. SQLite and configuration live
+in the persistent `zar-agent-session-ops_session-data` volume.
+
+```powershell
+docker compose logs -f
+docker compose down
+```
+
+`docker compose down` preserves the volume. Set `ZAR_DASHBOARD_PORT` before
+startup to choose another loopback port. `GITHUB_TOKEN` is optional; Compose
+passes it into the API environment and the application does not store it.
 
 ## Local API
 
@@ -228,6 +254,8 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 - `--apply` is required before files can move.
 - `maintain` also requires `--apply-policy` before files can move.
 - Summaries are sent only to local Ollama.
+- Under Compose, Codex is mounted read-only, the API runs as UID 10001, and only
+  the dashboard publishes a port bound to `127.0.0.1`.
 
 ## Development
 
@@ -238,6 +266,10 @@ cd dashboard
 npm audit
 npm run build
 npm test
+cd ..
+$env:CODEX_HOME = "$HOME\.codex"
+docker compose config --quiet
+docker compose build
 git diff --check
 ```
 
@@ -250,5 +282,5 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 ## Next milestones
 
 - Claude Code and OpenCode adapters once real fixtures are available.
-- Reproducible Docker packaging once a deployment workflow exists.
+- Background inventory refresh when on-demand scanning justifies it.
 - Server-side pagination and authentication when usage moves beyond loopback.

@@ -42,7 +42,7 @@ class ApiTest(unittest.TestCase):
 
             with TestClient(create_app(database, config)) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.9.0"},
+                    {"status": "ok", "version": "0.10.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
