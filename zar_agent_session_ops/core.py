@@ -14,6 +14,10 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
+DEFAULT_DATABASE = Path.home() / ".zar-agent-session-ops" / "sessions.db"
+DEFAULT_CONFIG = Path.home() / ".zar-agent-session-ops" / "config.toml"
+
+
 @dataclass(frozen=True)
 class Session:
     session_id: str

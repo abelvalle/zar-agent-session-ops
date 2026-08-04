@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0 - Local read-only API / API local de solo lectura
+
+- ES: añade una API FastAPI local con salud, inventario filtrable y posibles
+  bloqueos; no expone rutas de archivos ni operaciones de escritura.
+- EN: adds a local FastAPI API for health, filtered inventory, and blocked
+  signals; it exposes neither file paths nor write operations.
+- ES: incorpora `serve`, ligado exclusivamente a `127.0.0.1`, y documentación
+  OpenAPI generada por FastAPI.
+- EN: adds `serve`, bound exclusively to `127.0.0.1`, plus FastAPI-generated
+  OpenAPI documentation.
+- Verificación / Verification: 7 pruebas; API real sobre 461 sesiones, 3 rutas
+  OpenAPI, 1 posible bloqueo y 0 fuentes modificadas.
+- Detalles / Details: [docs/milestones/0.7.0.md](docs/milestones/0.7.0.md).
+
 ## 0.6.0 - Blocked-session signals and maintenance / Señales de bloqueo y mantenimiento
 
 - ES: detecta de forma conservadora sesiones Codex potencialmente bloqueadas y

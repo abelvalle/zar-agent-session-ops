@@ -3,10 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.6.0` ofrece soporte
-para el inventario local de Codex, detección conservadora de sesiones
-potencialmente bloqueadas e importación experimental de exportaciones oficiales
-de ChatGPT.
+sesiones locales de agentes de programación. La versión `0.7.0` ofrece un
+inventario local de Codex y ChatGPT, detección conservadora de posibles bloqueos
+y una API FastAPI local de solo lectura.
 
 ## Funciones disponibles
 
@@ -18,6 +17,7 @@ de ChatGPT.
 - Genera informes generales y semanales en Markdown.
 - Señala sesiones Codex potencialmente bloqueadas mediante eventos terminales.
 - Ejecuta escaneo, política e informes en un único ciclo programable.
+- Expone salud, sesiones y posibles bloqueos mediante una API local.
 - Resume una sesión mediante un modelo Ollama local.
 - Archiva sesiones individualmente o mediante una política configurable.
 - Simula cualquier archivado salvo que se indique `--apply`.
@@ -26,7 +26,11 @@ de ChatGPT.
 
 ## Inicio rápido
 
-Requiere Python 3.11 o posterior y no tiene dependencias de ejecución.
+Requiere Python 3.11 o posterior.
+
+```powershell
+python -m pip install -e .
+```
 
 ```powershell
 python -m zar_agent_session_ops scan
@@ -37,6 +41,25 @@ python -m zar_agent_session_ops weekly --output weekly-sessions.md
 python -m zar_agent_session_ops blocked --output blocked-sessions.md
 python -m zar_agent_session_ops maintain
 ```
+
+## API local
+
+El servidor escucha exclusivamente en `127.0.0.1` y ofrece tres operaciones de
+solo lectura:
+
+- `GET /health`: estado y versión.
+- `GET /sessions`: inventario; admite los filtros `agent` y `status`.
+- `GET /blocked`: señal conservadora de posibles bloqueos.
+
+```powershell
+python -m zar_agent_session_ops serve
+python -m zar_agent_session_ops serve --port 8080
+```
+
+La documentación OpenAPI queda disponible en `http://127.0.0.1:8000/docs`.
+Las respuestas no incluyen la ruta del JSONL ni `source_entry`. Esta versión no
+incorpora autenticación: no debe publicarse mediante proxy ni exponerse fuera
+del equipo local.
 
 ## Importar una exportación de ChatGPT
 
@@ -157,6 +180,7 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 - La base propia contiene metadatos, no transcripciones.
 - Las conversaciones ChatGPT permanecen dentro del ZIP o JSON original.
 - El proyecto no consulta las bases SQLite internas de Codex.
+- La API es GET-only, se liga a loopback y omite las rutas de archivos fuente.
 - `--apply` es obligatorio para mover archivos.
 - `maintain` tampoco mueve archivos sin `--apply-policy`.
 - Los resúmenes solo se envían al Ollama local.
@@ -164,6 +188,7 @@ python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 ## Desarrollo
 
 ```powershell
+python -m pip install -e ".[test]"
 python -B -m unittest discover -s tests -v
 git diff --check
 ```
@@ -177,5 +202,5 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 ## Próximos hitos
 
 - Adaptadores de Claude Code y OpenCode cuando existan fixtures reales.
-- FastAPI, dashboard e integración con GitHub después de estabilizar los
-  colectores locales.
+- Dashboard Angular local sobre la API existente.
+- Integración con GitHub Issues y Pull Requests.

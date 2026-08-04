@@ -13,6 +13,8 @@ from .core import (
     archive_sessions,
     blocked_candidates,
     blocked_report,
+    DEFAULT_CONFIG,
+    DEFAULT_DATABASE,
     extract_chatgpt_transcript,
     extract_transcript,
     find_session,
@@ -30,8 +32,6 @@ from .core import (
 
 
 DEFAULT_SOURCE = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-DEFAULT_DATABASE = Path.home() / ".zar-agent-session-ops" / "sessions.db"
-DEFAULT_CONFIG = Path.home() / ".zar-agent-session-ops" / "config.toml"
 DEFAULT_REPORT_DIR = DEFAULT_DATABASE.parent / "reports"
 
 
@@ -83,6 +83,9 @@ def _parser() -> argparse.ArgumentParser:
     maintain.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     maintain.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIR)
     maintain.add_argument("--apply-policy", action="store_true")
+
+    serve = commands.add_parser("serve", help="serve the local read-only API")
+    serve.add_argument("--port", type=int, default=8000)
     return parser
 
 
@@ -202,6 +205,18 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"Maintenance complete: {len(sessions)} sessions, "
                 f"{len(candidates)} {action}, {len(blocked)} potentially blocked"
+            )
+        elif args.command == "serve":
+            if not 1 <= args.port <= 65_535:
+                raise ValueError("port must be between 1 and 65535")
+            if not args.db.is_file():
+                raise FileNotFoundError(f"database not found: {args.db}; run scan first")
+            import uvicorn
+
+            from .api import create_app
+
+            uvicorn.run(
+                create_app(args.db, args.config), host="127.0.0.1", port=args.port
             )
         return 0
     except (
