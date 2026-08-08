@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.17.0` convierte el
-dashboard en una vista operativa: prioriza bloqueos y retención, permite localizar
-cada señal y actualiza inventarios grandes de forma incremental.
+sesiones locales de agentes de programación. La versión `0.18.0` convierte los
+informes Markdown en contenido consultable dentro del dashboard, conserva la
+descarga opcional y mantiene la vista operativa y el refresco incremental.
 
 ## Funciones disponibles
 
@@ -17,7 +17,8 @@ cada señal y actualiza inventarios grandes de forma incremental.
   esos metadatos existen.
 - Guarda únicamente metadatos normalizados en SQLite.
 - Genera informes generales y semanales en Markdown.
-- Descarga inventario, actividad semanal y posibles bloqueos desde el dashboard.
+- Lee inventario, actividad semanal y posibles bloqueos dentro del dashboard y
+  permite descargar el Markdown seleccionado de forma opcional.
 - Consolida trabajo, decisiones, pendientes, riesgos y relaciones GitHub de la
   semana mediante Ollama local.
 - Señala sesiones Codex potencialmente bloqueadas mediante eventos terminales.
@@ -141,10 +142,12 @@ npm start
 Abre `http://127.0.0.1:4200`. El servidor de desarrollo redirige `/api/**` a
 la API local, por lo que no hace falta habilitar CORS. La interfaz abre con una
 cola de atención para posibles bloqueos y candidatas a archivo, explica el motivo
-de cada señal y permite localizarla en el inventario filtrado. Después ofrece
-métricas, filtros, paginación, consulta GitHub bajo demanda y los estados de
-carga, error y ausencia de datos. También descarga los tres informes Markdown
-sin abrir ni copiar transcripciones. Se adapta a escritorio y móvil.
+de cada señal y permite localizarla en el inventario filtrado. El lector de
+informes muestra por defecto el resumen semanal y permite alternar entre semanal,
+bloqueos e inventario sin abandonar la página; la descarga queda como acción
+secundaria. Después ofrece métricas, filtros, paginación, consulta GitHub bajo
+demanda y los estados de carga, error y ausencia de datos. Se adapta a escritorio
+y móvil.
 
 ## Relaciones con GitHub
 

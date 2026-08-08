@@ -133,13 +133,6 @@ h3 {
   gap: 12px;
 }
 
-.report-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .refresh-control {
   display: grid;
   justify-items: end;
@@ -281,11 +274,59 @@ h3 {
   margin-top: 24px;
 }
 
+.reports,
 .inventory {
   overflow: hidden;
   border: 1px solid var(--mat-sys-outline-variant);
   border-radius: 16px;
   background: var(--mat-sys-surface-container-lowest);
+}
+
+.reports {
+  margin-bottom: 28px;
+}
+
+.report-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.report-selector--active {
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.report-toolbar,
+.report-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 24px;
+}
+
+.report-toolbar {
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.report-state {
+  color: var(--mat-sys-error);
+}
+
+.report-content {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 520px;
+  margin: 0;
+  overflow: auto;
+  padding: 24px;
+  background: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  tab-size: 2;
 }
 
 .section-heading p {
@@ -491,10 +532,6 @@ code {
     justify-items: start;
   }
 
-  .report-actions {
-    justify-content: flex-start;
-  }
-
   .page-header button {
     align-self: start;
   }
@@ -553,8 +590,16 @@ code {
   .github-heading,
   .attention-heading,
   .attention-panel,
+  .report-toolbar,
+  .report-state,
   .message {
     padding: 20px;
+  }
+
+  .report-toolbar,
+  .report-state {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .mat-column-repository,

@@ -3,9 +3,9 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.17.0` turns the dashboard into an operational view: it prioritizes blocked
-and retention signals, locates each signal, and refreshes large inventories
-incrementally.
+`0.18.0` makes Markdown reports readable inside the dashboard, keeps download
+as an optional action, and preserves the operational view and incremental
+refresh.
 
 ## Available features
 
@@ -17,7 +17,8 @@ incrementally.
   those metadata are available.
 - Stores normalized metadata only in SQLite.
 - Produces general and weekly Markdown reports.
-- Downloads inventory, weekly activity, and blocked signals from the dashboard.
+- Reads inventory, weekly activity, and blocked signals inside the dashboard,
+  with an optional download for the selected Markdown report.
 - Consolidates weekly work, decisions, pending tasks, risks, and GitHub
   relationships through local Ollama.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
@@ -135,10 +136,11 @@ npm start
 Open `http://127.0.0.1:4200`. The development server proxies `/api/**` to the
 local API, so CORS does not need to be enabled. The interface opens with an
 attention queue for potentially blocked sessions and archive candidates,
-explains each signal, and locates it in the filtered inventory. It then provides
-status metrics, filters, pagination, on-demand GitHub lookup, plus loading,
-error, and empty states. It also downloads all three Markdown reports without
-opening or copying transcripts. It adapts to desktop and mobile.
+explains each signal, and locates it in the filtered inventory. Its report reader
+opens the weekly report by default and switches between weekly, blocked, and
+inventory reports without leaving the page; download remains secondary. The UI
+also provides status metrics, filters, pagination, on-demand GitHub lookup, plus
+loading, error, and empty states. It adapts to desktop and mobile.
 
 ## GitHub relationships
 

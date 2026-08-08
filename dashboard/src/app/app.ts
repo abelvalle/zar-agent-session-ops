@@ -72,6 +72,8 @@ interface GitHubResponse {
   references: GitHubReference[];
 }
 
+type ReportName = 'weekly' | 'blocked' | 'sessions';
+
 @Component({
   selector: 'app-root',
   imports: [
@@ -105,16 +107,30 @@ export class App {
   protected readonly pageSize = signal(25);
   protected readonly selectedSession = signal<AgentSession | null>(null);
   protected readonly refreshState = signal<RefreshResponse | null>(null);
+  protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
+    { id: 'weekly', label: 'Semanal' },
+    { id: 'blocked', label: 'Bloqueos' },
+    { id: 'sessions', label: 'Inventario' },
+  ];
+  protected readonly selectedReport = signal<ReportName>('weekly');
   protected readonly health = httpResource<HealthResponse>(() => '/api/health');
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
   protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
+  protected readonly report = httpResource.text(
+    () => `/api/reports/${this.selectedReport()}`,
+  );
   protected readonly github = httpResource<GitHubResponse>(() => {
     const session = this.selectedSession();
     return session ? `/api/sessions/${encodeURIComponent(session.id)}/github` : undefined;
   });
 
   protected readonly sessions = computed(() => this.inventory.value()?.sessions ?? []);
+  protected readonly selectedReportLabel = computed(
+    () =>
+      this.reportOptions.find((option) => option.id === this.selectedReport())?.label ??
+      'Informe',
+  );
   protected readonly agents = computed(() =>
     [...new Set(this.sessions().map((session) => session.agent))].sort(),
   );
@@ -206,6 +222,7 @@ export class App {
     this.inventory.reload();
     this.blocked.reload();
     this.retention.reload();
+    this.report.reload();
     if (this.selectedSession()) {
       this.github.reload();
     }
@@ -237,6 +254,10 @@ export class App {
   protected setPage(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
     this.pageSize.set(event.pageSize);
+  }
+
+  protected selectReport(report: ReportName): void {
+    this.selectedReport.set(report);
   }
 
   protected locateSession(session: AgentSession): void {

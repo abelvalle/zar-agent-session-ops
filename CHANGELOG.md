@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.18.0 - Inline Markdown reports / Informes Markdown integrados
+
+- ES: añade un lector dentro del dashboard para consultar los informes semanal,
+  bloqueos e inventario sin descargar archivos ni abandonar la aplicación.
+- EN: adds an in-dashboard reader for weekly, blocked, and inventory reports
+  without downloading files or leaving the application.
+- ES: conserva la descarga del informe seleccionado como acción secundaria e
+  incorpora estados de carga, error y reintento independientes.
+- EN: keeps download for the selected report as a secondary action and adds
+  independent loading, error, and retry states.
+- Verificación / Verification: 17 pruebas Python, 5 pruebas Angular, build de
+  producción, auditoría npm y stack Docker 0.18 validados.
+- Detalles / Details: [docs/milestones/0.18.0.md](docs/milestones/0.18.0.md).
+
 ## 0.17.0 - Operational dashboard / Dashboard operativo
 
 - ES: sustituye la pantalla centrada en el inventario por una cola de atención

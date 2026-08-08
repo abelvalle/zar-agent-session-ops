@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.17.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
     http.expectOne('/api/sessions').flush({
       count: 3,
       sessions: [
@@ -39,13 +39,14 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [session('active-id', 'Build dashboard', 'active')],
     });
+    http.expectOne('/api/reports/weekly').flush('# Weekly report');
 
     await fixture.whenStable();
     fixture.detectChanges();
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.17.0');
+    expect(page.textContent).toContain('API 0.18.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -61,11 +62,10 @@ describe('App', () => {
     );
     expect(page.textContent).toContain('1 - 3 de 3');
     expect(page.querySelector('mat-paginator')).toBeTruthy();
-    for (const report of ['sessions', 'weekly', 'blocked']) {
-      const link = page.querySelector<HTMLAnchorElement>(`a[href="/api/reports/${report}"]`);
-      expect(link).toBeTruthy();
-      expect(link?.hasAttribute('download')).toBe(true);
-    }
+    expect(page.textContent).toContain('Weekly report');
+    expect(page.querySelector<HTMLAnchorElement>('a[download]')?.href).toContain(
+      '/api/reports/weekly',
+    );
 
     page.querySelector<HTMLButtonElement>('.github-button')?.click();
     fixture.detectChanges();
@@ -97,12 +97,56 @@ describe('App', () => {
     for (const url of ['/api/health', '/api/sessions', '/api/blocked', '/api/retention']) {
       http.expectOne(url).flush('offline', { status: 503, statusText: 'Unavailable' });
     }
+    http
+      .expectOne('/api/reports/weekly')
+      .flush('offline', { status: 503, statusText: 'Unavailable' });
 
     await fixture.whenStable();
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'No se pudo cargar el inventario',
     );
+  });
+
+  it('reads Markdown reports inline and recovers a failed report', async () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
+    http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
+    http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
+    http.expectOne('/api/retention').flush({
+      count: 0,
+      archive_after_days: 30,
+      sessions: [],
+    });
+    http
+      .expectOne('/api/reports/weekly')
+      .flush('offline', { status: 503, statusText: 'Unavailable' });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.textContent).toContain('No se pudo cargar el informe');
+    page.querySelector<HTMLButtonElement>('.report-retry')?.click();
+    await new Promise((resolve) => setTimeout(resolve));
+    http.expectOne('/api/reports/weekly').flush('# Weekly report\n\n- Active sessions: 2');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.querySelector('.report-content')?.textContent).toContain('Active sessions: 2');
+
+    [...page.querySelectorAll<HTMLButtonElement>('.report-selector button')]
+      .find((button) => button.textContent?.includes('Bloqueos'))
+      ?.click();
+    await new Promise((resolve) => setTimeout(resolve));
+    http.expectOne('/api/reports/blocked').flush('# Potentially blocked\n\n- Candidates: 1');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(page.querySelector('.report-content')?.textContent).toContain('Candidates: 1');
+    const download = page.querySelector<HTMLAnchorElement>('a[download]');
+    expect(download?.href).toContain('/api/reports/blocked');
+    expect(download?.download).toBe('blocked.md');
   });
 
   it('locates the exact flagged record when a session id is duplicated', async () => {
@@ -123,7 +167,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.17.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -135,6 +179,7 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [],
     });
+    http.expectOne('/api/reports/weekly').flush('# Weekly report');
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -154,7 +199,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.17.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -162,6 +207,7 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [],
     });
+    http.expectOne('/api/reports/weekly').flush('# Weekly report');
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -191,7 +237,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.17.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],
@@ -206,6 +252,7 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [],
     });
+    http.expectOne('/api/reports/weekly').flush('# Weekly report updated');
     await fixture.whenStable();
     fixture.detectChanges();
 

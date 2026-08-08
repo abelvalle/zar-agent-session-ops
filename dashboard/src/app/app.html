@@ -31,11 +31,6 @@
       </p>
     </div>
     <div class="page-actions">
-      <nav class="report-actions" aria-label="Descargar informes Markdown">
-        <a mat-stroked-button href="/api/reports/sessions" download>Inventario .md</a>
-        <a mat-stroked-button href="/api/reports/weekly" download>Semanal .md</a>
-        <a mat-stroked-button href="/api/reports/blocked" download>Bloqueos .md</a>
-      </nav>
       <div class="refresh-control">
         <button mat-flat-button type="button" (click)="refresh()" [disabled]="loading()">
           {{ refreshState()?.status === 'running' ? 'Actualizando…' : 'Actualizar' }}
@@ -171,6 +166,56 @@
           }
         </article>
       </div>
+    </section>
+
+    <section class="reports" aria-labelledby="reports-title">
+      <div class="section-heading report-heading">
+        <div>
+          <h2 id="reports-title">Informes</h2>
+          <p>Consulta el Markdown en la web; descarga una copia solo si la necesitas.</p>
+        </div>
+        <nav class="report-selector" aria-label="Seleccionar informe">
+          @for (option of reportOptions; track option.id) {
+            <button
+              mat-button
+              type="button"
+              [class.report-selector--active]="selectedReport() === option.id"
+              [attr.aria-pressed]="selectedReport() === option.id"
+              (click)="selectReport(option.id)"
+            >
+              {{ option.label }}
+            </button>
+          }
+        </nav>
+      </div>
+
+      <div class="report-toolbar">
+        <strong>{{ selectedReportLabel() }}</strong>
+        <a
+          mat-stroked-button
+          [href]="'/api/reports/' + selectedReport()"
+          [attr.download]="selectedReport() + '.md'"
+        >
+          Descargar .md
+        </a>
+      </div>
+
+      @if (report.isLoading()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Cargando informe" />
+      } @else if (report.error()) {
+        <div class="report-state" role="alert">
+          <span>No se pudo cargar el informe. Comprueba la API local y vuelve a intentarlo.</span>
+          <button mat-stroked-button type="button" class="report-retry" (click)="report.reload()">
+            Reintentar informe
+          </button>
+        </div>
+      } @else {
+        <pre
+          class="report-content"
+          tabindex="0"
+          [attr.aria-label]="'Contenido del informe ' + selectedReportLabel()"
+        >{{ report.value() }}</pre>
+      }
     </section>
 
     <section class="inventory" aria-labelledby="inventory-title">
