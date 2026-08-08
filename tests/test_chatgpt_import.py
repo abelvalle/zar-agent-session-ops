@@ -11,6 +11,7 @@ from unittest.mock import patch
 from zar_agent_session_ops.cli import main
 from zar_agent_session_ops.core import (
     extract_chatgpt_transcript,
+    extract_session_transcript,
     load_sessions,
     scan_chatgpt_export,
 )
@@ -53,6 +54,10 @@ class ChatGPTImportTest(unittest.TestCase):
             self.assertEqual(
                 "user: Fix parser\n\nassistant: Parser fixed",
                 extract_chatgpt_transcript(first),
+            )
+            self.assertEqual(
+                "user: Fix parser\n\nassistant: Parser fixed",
+                extract_session_transcript(first),
             )
 
             handoff = root / "handoff.md"

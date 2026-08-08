@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0 - Weekly operational digest / Informe operativo semanal
+
+- ES: añade `weekly-digest` para consolidar trabajo, decisiones técnicas,
+  pendientes, riesgos y commits o Pull Requests explícitos mediante Ollama local.
+- EN: adds `weekly-digest` to consolidate work, technical decisions, pending
+  tasks, risks, and explicit commits or Pull Requests through local Ollama.
+- ES: limita la entrada a siete días, 12 sesiones recientes y 24.000 caracteres;
+  `maintain --model` genera el mismo informe dentro del ciclo programable.
+- EN: bounds input to seven days, 12 recent sessions, and 24,000 characters;
+  `maintain --model` generates the same report in the schedulable cycle.
+- Verificación / Verification: 14 pruebas Python, 3 pruebas Angular, build de
+  producción, auditoría npm y stack Docker 0.13 validados.
+- Detalles / Details: [docs/milestones/0.13.0.md](docs/milestones/0.13.0.md).
+
 ## 0.12.0 - Minimal-context handoff / Relevo de contexto mínimo
 
 - ES: añade `handoff` para convertir una sesión Codex o ChatGPT indexada en un

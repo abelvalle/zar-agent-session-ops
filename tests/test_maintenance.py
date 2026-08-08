@@ -4,6 +4,7 @@ import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from zar_agent_session_ops.cli import main
 from zar_agent_session_ops.core import load_sessions
@@ -59,6 +60,33 @@ blocked_after_hours = 24
                 {item.session_id: item.last_event_type for item in load_sessions(database)},
             )
             self.assertEqual(2, len(list(sessions_dir.glob("*.jsonl"))))
+
+            with patch(
+                "zar_agent_session_ops.cli.weekly_digest",
+                return_value="# Weekly operational digest\n",
+            ) as digest:
+                result = main(
+                    [
+                        "--db",
+                        str(database),
+                        "--config",
+                        str(config),
+                        "maintain",
+                        "--source",
+                        str(codex_home),
+                        "--output-dir",
+                        str(reports),
+                        "--model",
+                        "local-model",
+                    ]
+                )
+            self.assertEqual(0, result)
+            self.assertEqual(
+                "# Weekly operational digest\n",
+                (reports / "weekly-digest.md").read_text(encoding="utf-8"),
+            )
+            digest.assert_called_once()
+            self.assertEqual("local-model", digest.call_args.args[1])
 
     @staticmethod
     def _session(path: Path, session_id: str, terminal_event: str) -> None:

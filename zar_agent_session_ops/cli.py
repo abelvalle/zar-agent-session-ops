@@ -15,8 +15,7 @@ from .core import (
     DEFAULT_CONFIG,
     DEFAULT_DATABASE,
     DEFAULT_SOURCE,
-    extract_chatgpt_transcript,
-    extract_transcript,
+    extract_session_transcript,
     find_session,
     format_size,
     load_sessions,
@@ -28,6 +27,7 @@ from .core import (
     session_handoff,
     summarize_with_ollama,
     sync_sessions,
+    weekly_digest,
     weekly_report,
 )
 from .github import session_github_references
@@ -75,6 +75,14 @@ def _parser() -> argparse.ArgumentParser:
     weekly = commands.add_parser("weekly", help="write the last seven days as Markdown")
     weekly.add_argument("--output", type=Path, default=Path("weekly-sessions.md"))
 
+    digest = commands.add_parser(
+        "weekly-digest", help="summarize recent sessions with Ollama"
+    )
+    digest.add_argument("--model", required=True)
+    digest.add_argument("--output", type=Path, default=Path("weekly-digest.md"))
+    digest.add_argument("--max-chars", type=int, default=24_000)
+    digest.add_argument("--max-sessions", type=int, default=12)
+
     summarize = commands.add_parser("summarize", help="summarize one session with Ollama")
     summarize.add_argument("session_id")
     summarize.add_argument("--model", required=True)
@@ -98,6 +106,9 @@ def _parser() -> argparse.ArgumentParser:
     maintain.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     maintain.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIR)
     maintain.add_argument("--apply-policy", action="store_true")
+    maintain.add_argument("--model")
+    maintain.add_argument("--max-chars", type=int, default=24_000)
+    maintain.add_argument("--max-sessions", type=int, default=12)
 
     serve = commands.add_parser("serve", help="serve the local API")
     serve.add_argument("--port", type=int, default=8000)
@@ -192,12 +203,20 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "weekly":
             args.output.write_text(weekly_report(load_sessions(args.db)), encoding="utf-8")
             print(f"Weekly report written to {args.output.resolve()}")
+        elif args.command == "weekly-digest":
+            args.output.write_text(
+                weekly_digest(
+                    load_sessions(args.db),
+                    args.model,
+                    max_chars=args.max_chars,
+                    max_sessions=args.max_sessions,
+                ),
+                encoding="utf-8",
+            )
+            print(f"Weekly digest written to {args.output.resolve()}")
         elif args.command == "summarize":
             session = find_session(args.db, args.session_id)
-            if session.agent == "chatgpt":
-                transcript = extract_chatgpt_transcript(session, args.max_chars)
-            else:
-                transcript = extract_transcript(session.path, args.max_chars)
+            transcript = extract_session_transcript(session, args.max_chars)
             summary = summarize_with_ollama(
                 transcript, args.model
             )
@@ -208,10 +227,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(summary)
         elif args.command == "handoff":
             session = find_session(args.db, args.session_id)
-            if session.agent == "chatgpt":
-                transcript = extract_chatgpt_transcript(session, args.max_chars)
-            else:
-                transcript = extract_transcript(session.path, args.max_chars)
+            transcript = extract_session_transcript(session, args.max_chars)
             args.output.write_text(
                 session_handoff(session, transcript, args.model), encoding="utf-8"
             )
@@ -237,6 +253,16 @@ def main(argv: list[str] | None = None) -> int:
             (args.output_dir / "weekly.md").write_text(
                 weekly_report(sessions), encoding="utf-8"
             )
+            if args.model:
+                (args.output_dir / "weekly-digest.md").write_text(
+                    weekly_digest(
+                        sessions,
+                        args.model,
+                        max_chars=args.max_chars,
+                        max_sessions=args.max_sessions,
+                    ),
+                    encoding="utf-8",
+                )
             blocked = blocked_candidates(sessions, policy)
             (args.output_dir / "blocked.md").write_text(
                 blocked_report(sessions, policy), encoding="utf-8"

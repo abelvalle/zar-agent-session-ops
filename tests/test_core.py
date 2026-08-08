@@ -20,6 +20,7 @@ from zar_agent_session_ops.core import (
     summarize_with_ollama,
     sync_sessions,
     weekly_report,
+    weekly_digest,
 )
 
 
@@ -190,6 +191,62 @@ class SessionFlowTest(unittest.TestCase):
             request = json.loads(call.call_args.args[0].data)
             self.assertIn("minimal handoff", request["system"])
             self.assertEqual("user: Fix parser\n\nassistant: Parser fixed", request["prompt"])
+
+    def test_generates_bounded_weekly_digest_from_latest_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_session(root / "old.jsonl", "old", "2026-07-01T10:00:00Z", "Old work")
+            self._write_session(root / "recent.jsonl", "recent", "2026-08-07T10:00:00Z", "Recent work")
+            newest = root / "newest.jsonl"
+            self._write_session(
+                newest,
+                "newest",
+                "2026-08-08T10:00:00Z",
+                "Merged https://github.com/abelvalle/zar-agent-session-ops/pull/12",
+            )
+            source = newest.read_bytes()
+            response = io.BytesIO(
+                json.dumps({"response": "## Weekly summary\nParser delivered"}).encode()
+            )
+            with patch("zar_agent_session_ops.core.urlopen", return_value=response) as call:
+                digest = weekly_digest(
+                    scan_codex(root),
+                    "local-model",
+                    now=datetime(2026, 8, 8, 12, tzinfo=timezone.utc),
+                    max_chars=400,
+                    max_sessions=1,
+                )
+
+            self.assertIn("Sessions analyzed: 1", digest)
+            request = json.loads(call.call_args.args[0].data)
+            self.assertLessEqual(len(request["prompt"]), 400)
+            self.assertIn("Session: newest", request["prompt"])
+            self.assertIn("/pull/12", request["prompt"])
+            self.assertNotIn("Recent work", request["prompt"])
+            self.assertNotIn("Old work", request["prompt"])
+            self.assertIn("Commits and pull requests", request["system"])
+            self.assertEqual(source, newest.read_bytes())
+
+    @staticmethod
+    def _write_session(path: Path, session_id: str, timestamp: str, message: str) -> None:
+        events = [
+            {
+                "timestamp": timestamp,
+                "type": "session_meta",
+                "payload": {"id": session_id, "cwd": "D:/repo"},
+            },
+            {
+                "timestamp": timestamp,
+                "type": "response_item",
+                "payload": {
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": message}],
+                },
+            },
+        ]
+        path.write_text(
+            "\n".join(json.dumps(event) for event in events), encoding="utf-8"
+        )
 
 
 if __name__ == "__main__":

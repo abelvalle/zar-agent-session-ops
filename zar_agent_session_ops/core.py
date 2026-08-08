@@ -644,6 +644,12 @@ def extract_transcript(path: Path, max_chars: int = 24_000) -> str:
     return "\n\n".join(chunks)[-max_chars:]
 
 
+def extract_session_transcript(session: Session, max_chars: int = 24_000) -> str:
+    if session.agent == "chatgpt":
+        return extract_chatgpt_transcript(session, max_chars)
+    return extract_transcript(session.path, max_chars)
+
+
 def summarize_with_ollama(
     transcript: str,
     model: str,
@@ -709,6 +715,63 @@ def session_handoff(
         f"- Source session: `{session.session_id}`\n"
         f"- Repository: `{session.repository or 'Not identified'}`\n"
         f"- Last activity: `{session.last_activity_at.isoformat(timespec='seconds')}`\n\n"
+        f"{summary}\n"
+    )
+
+
+def weekly_digest(
+    sessions: list[Session],
+    model: str,
+    now: datetime | None = None,
+    max_chars: int = 24_000,
+    max_sessions: int = 12,
+    timeout: int = 120,
+) -> str:
+    if max_chars < 1:
+        raise ValueError("max_chars must be a positive integer")
+    if max_sessions < 1:
+        raise ValueError("max_sessions must be a positive integer")
+    current = now or datetime.now(timezone.utc)
+    start = current - timedelta(days=7)
+    recent = sorted(
+        (session for session in sessions if session.last_activity_at >= start),
+        key=lambda session: session.last_activity_at,
+    )[-max_sessions:]
+    if not recent:
+        raise ValueError("No sessions were active in the last seven days")
+    per_session = max(1, max_chars // len(recent))
+    excerpts = []
+    for session in recent:
+        transcript = extract_session_transcript(session, per_session)
+        if transcript:
+            excerpts.append(
+                f"Session: {session.session_id}\n"
+                f"Agent: {session.agent}\n"
+                f"Repository: {session.repository or 'Not identified'}\n"
+                f"Last activity: {session.last_activity_at.isoformat(timespec='seconds')}\n"
+                f"{transcript}"
+            )
+    if not excerpts:
+        raise ValueError("Recent sessions have no user or assistant text to summarize")
+    prompt = "\n\n---\n\n".join(excerpts)[-max_chars:]
+    summary = summarize_with_ollama(
+        prompt,
+        model,
+        timeout,
+        (
+            "Create a concise weekly coding-agent digest as Markdown. Use the "
+            "transcripts' dominant language and exactly five level-two sections "
+            "for Weekly summary, Technical decisions, Pending tasks, Risks, and "
+            "Commits and pull requests; translate headings when appropriate. Use "
+            "only explicit evidence, copy complete GitHub URLs exactly, and write "
+            "'None identified' when a section has no evidence."
+        ),
+    )
+    return (
+        "# Weekly operational digest\n\n"
+        f"Period: {start.date().isoformat()} to {current.date().isoformat()}\n\n"
+        f"- Sessions analyzed: {len(excerpts)}\n"
+        f"- Source characters: {len(prompt)}\n\n"
         f"{summary}\n"
     )
 

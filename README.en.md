@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.12.0` provides a local Codex and ChatGPT inventory, conservative blocked
-session signals, and minimal-context handoffs for continuing work in a new session.
+`0.13.0` provides a local Codex and ChatGPT inventory, conservative blocked
+session signals, and a bounded weekly operational digest generated locally.
 
 ## Available features
 
@@ -14,6 +14,8 @@ session signals, and minimal-context handoffs for continuing work in a new sessi
   those metadata are available.
 - Stores normalized metadata only in SQLite.
 - Produces general and weekly Markdown reports.
+- Consolidates weekly work, decisions, pending tasks, risks, and GitHub
+  relationships through local Ollama.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
 - Runs scanning, policy evaluation, and reports in one schedulable cycle.
 - Exposes health, sessions, and blocked signals through a local API.
@@ -44,6 +46,7 @@ python -m zar_agent_session_ops show SESSION_ID
 python -m zar_agent_session_ops github SESSION_ID
 python -m zar_agent_session_ops report --output sessions.md
 python -m zar_agent_session_ops weekly --output weekly-sessions.md
+python -m zar_agent_session_ops weekly-digest --model qwen3:8b
 python -m zar_agent_session_ops blocked --output blocked-sessions.md
 python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b
 python -m zar_agent_session_ops maintain
@@ -215,10 +218,12 @@ python -m zar_agent_session_ops blocked --output blocked-sessions.md
 `maintain` performs one Codex scan, retention-policy evaluation, and writes
 `sessions.md`, `weekly.md`, and `blocked.md`. The default directory is
 `%USERPROFILE%\.zar-agent-session-ops\reports`. Policy actions remain a dry run
-unless `--apply-policy` is explicitly supplied.
+unless `--apply-policy` is explicitly supplied. When `--model` is provided, the
+cycle adds `weekly-digest.md` through one local Ollama request.
 
 ```powershell
 python -m zar_agent_session_ops maintain
+python -m zar_agent_session_ops maintain --model qwen3:8b
 python -m zar_agent_session_ops maintain --apply-policy
 ```
 
@@ -251,6 +256,20 @@ characters by default.
 python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
 ```
 
+## Weekly operational digest
+
+`weekly-digest` selects sessions active in the latest seven days, uses at most
+the 12 most recent, and shares no more than 24,000 total characters with Ollama.
+The result contains a summary, technical decisions, pending tasks, risks, and
+commits or Pull Requests backed by explicit URLs.
+
+```powershell
+python -m zar_agent_session_ops weekly-digest --model qwen3:8b --output weekly-digest.md
+```
+
+`--max-sessions` and `--max-chars` can lower those limits. The source transcript
+is not appended to the generated Markdown, and source files are never modified.
+
 ## Minimal-context handoff
 
 `handoff` reuses local extraction and Ollama to retain only the goal, completed
@@ -277,7 +296,7 @@ complete original transcript instead of reducing context.
 - GitHub integration sends only explicit identifiers to `api.github.com`.
 - `--apply` is required before files can move.
 - `maintain` also requires `--apply-policy` before files can move.
-- Summaries and handoffs are sent only to local Ollama.
+- Summaries, handoffs, and operational digests are sent only to local Ollama.
 - Under Compose, Codex is mounted read-only, the API runs as UID 10001, and only
   the dashboard publishes a port bound to `127.0.0.1`.
 
