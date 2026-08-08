@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.15.0` provides a local Codex and ChatGPT inventory, adds the Claude Code
-session registry, and downloads Markdown reports from the local dashboard.
+`0.16.0` provides a local Codex and ChatGPT inventory, adds the Claude Code
+session registry, and previews retention policy from the local dashboard.
 
 ## Available features
 
@@ -27,6 +27,7 @@ session registry, and downloads Markdown reports from the local dashboard.
 - Summarizes a session with a local Ollama model.
 - Generates a minimal Markdown handoff for a new Codex or ChatGPT session.
 - Archives individual sessions or applies a configurable retention policy.
+- Previews sessions that match retention policy without moving files.
 - Simulates every archive operation unless `--apply` is supplied.
 - Imports metadata and on-demand transcripts from an official ChatGPT ZIP or
   JSON without copying conversations into the application database.
@@ -94,6 +95,7 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `POST /api/refresh`: starts a background Codex and Claude Code scan.
 - `GET /api/sessions`: inventory with optional `agent` and `status` filters.
 - `GET /api/blocked`: conservative potentially blocked signal.
+- `GET /api/retention`: candidate preview based on local policy.
 - `GET /api/reports/{report_name}`: downloads `sessions`, `weekly`, or `blocked`
   as Markdown.
 - `GET /api/sessions/{session_id}/github`: explicit GitHub relationships.
@@ -127,10 +129,10 @@ npm start
 
 Open `http://127.0.0.1:4200`. The development server proxies `/api/**` to the
 local API, so CORS does not need to be enabled. The interface provides status
-metrics, filters, pagination, potentially blocked-session review, on-demand
-GitHub lookup, real inventory refresh, plus loading, error, and empty states. It
-also downloads all three Markdown reports without opening or copying transcripts.
-It adapts to desktop and mobile.
+metrics, filters, pagination, retention preview, potentially blocked-session
+review, on-demand GitHub lookup, real inventory refresh, plus loading, error,
+and empty states. It also downloads all three Markdown reports without opening
+or copying transcripts. It adapts to desktop and mobile.
 
 ## GitHub relationships
 
@@ -223,6 +225,10 @@ python -m zar_agent_session_ops policy --apply
 
 The policy never re-archives sessions already archived by Codex.
 
+The dashboard and `GET /api/retention` expose only the threshold and candidate
+metadata. They neither expose `archive_dir` nor move files; archiving still
+requires `--apply` or `--apply-policy` through the CLI.
+
 ## Potentially blocked sessions
 
 An active Codex session is flagged only when its latest terminal event is
@@ -237,8 +243,7 @@ python -m zar_agent_session_ops blocked --output blocked-sessions.md
 ## Scheduled maintenance
 
 `maintain` performs one Codex and Claude Code scan, retention-policy evaluation,
-and writes
-`sessions.md`, `weekly.md`, and `blocked.md`. The default directory is
+and writes `sessions.md`, `weekly.md`, and `blocked.md`. The default directory is
 `%USERPROFILE%\.zar-agent-session-ops\reports`. Policy actions remain a dry run
 unless `--apply-policy` is explicitly supplied. When `--model` is provided, the
 cycle adds `weekly-digest.md` through one local Ollama request.

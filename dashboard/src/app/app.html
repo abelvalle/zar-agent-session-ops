@@ -242,6 +242,30 @@
       </section>
     }
 
+    <section class="blocked-panel" aria-labelledby="retention-title">
+      <div>
+        <h2 id="retention-title">Vista previa de retención</h2>
+        <p>
+          Umbral: {{ retention.value()?.archive_after_days ?? 30 }} días sin actividad.
+          {{ retention.value()?.count ?? 0 }}
+          {{ (retention.value()?.count ?? 0) === 1 ? 'candidata' : 'candidatas' }} a
+          archivo.
+        </p>
+      </div>
+      @if ((retention.value()?.count ?? 0) === 0) {
+        <p class="blocked-clear">Ninguna sesión activa cumple la política.</p>
+      } @else {
+        <ul>
+          @for (session of retention.value()?.sessions ?? []; track session.id) {
+            <li>
+              <strong>{{ session.title || 'Sin título' }}</strong>
+              <span>{{ session.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
     <section class="blocked-panel" aria-labelledby="blocked-title">
       <div>
         <h2 id="blocked-title">Revisión de bloqueos</h2>

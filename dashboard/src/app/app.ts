@@ -35,6 +35,10 @@ interface BlockedResponse extends InventoryResponse {
   threshold_hours: number;
 }
 
+interface RetentionResponse extends InventoryResponse {
+  archive_after_days: number;
+}
+
 interface HealthResponse {
   status: string;
   version: string;
@@ -101,6 +105,7 @@ export class App {
   protected readonly health = httpResource<HealthResponse>(() => '/api/health');
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
+  protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
   protected readonly github = httpResource<GitHubResponse>(() => {
     const session = this.selectedSession();
     return session ? `/api/sessions/${encodeURIComponent(session.id)}/github` : undefined;
@@ -132,10 +137,17 @@ export class App {
       this.refreshState()?.status === 'running' ||
       this.health.isLoading() ||
       this.inventory.isLoading() ||
-      this.blocked.isLoading(),
+      this.blocked.isLoading() ||
+      this.retention.isLoading(),
   );
   protected readonly failed = computed(
-    () => !!(this.health.error() || this.inventory.error() || this.blocked.error()),
+    () =>
+      !!(
+        this.health.error() ||
+        this.inventory.error() ||
+        this.blocked.error() ||
+        this.retention.error()
+      ),
   );
 
   protected refresh(): void {
@@ -187,6 +199,7 @@ export class App {
     this.health.reload();
     this.inventory.reload();
     this.blocked.reload();
+    this.retention.reload();
     if (this.selectedSession()) {
       this.github.reload();
     }

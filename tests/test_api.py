@@ -35,6 +35,24 @@ class ApiTest(unittest.TestCase):
                     )
                 ],
             )
+            sync_sessions(
+                database,
+                [
+                    Session(
+                        session_id="claude-registered",
+                        agent="claude",
+                        path=source,
+                        repository="D:/repo",
+                        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                        last_activity_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                        size_bytes=21,
+                        event_count=0,
+                        status="registered",
+                        title="Claude registry",
+                    )
+                ],
+                agent="claude",
+            )
             config = root / "config.toml"
             config.write_text(
                 "[policy]\nblocked_after_hours = 24\narchive_after_days = 30\narchive_dir = 'archive'\n",
@@ -45,7 +63,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.15.0"},
+                    {"status": "ok", "version": "0.16.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -57,6 +75,11 @@ class ApiTest(unittest.TestCase):
                 blocked = client.get("/api/blocked").json()
                 self.assertEqual(1, blocked["count"])
                 self.assertEqual(24, blocked["threshold_hours"])
+                retention = client.get("/api/retention").json()
+                self.assertEqual(1, retention["count"])
+                self.assertEqual(30, retention["archive_after_days"])
+                self.assertEqual("codex-1", retention["sessions"][0]["id"])
+                self.assertNotIn("archive_dir", retention)
                 for report_name in ("sessions", "weekly", "blocked"):
                     response = client.get(f"/api/reports/{report_name}")
                     self.assertEqual(200, response.status_code)
@@ -107,6 +130,7 @@ class ApiTest(unittest.TestCase):
                         "/api/refresh",
                         "/api/sessions",
                         "/api/blocked",
+                        "/api/retention",
                         "/api/reports/{report_name}",
                         "/api/sessions/{session_id}/github",
                     },

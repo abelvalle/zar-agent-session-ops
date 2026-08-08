@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.16.0 - Retention preview / Vista previa de retención
+
+- ES: añade `GET /api/retention` con el umbral configurado y las sesiones
+  activas que cumplirían la política, sin exponer `archive_dir`.
+- EN: adds `GET /api/retention` with the configured threshold and active
+  sessions that match policy, without exposing `archive_dir`.
+- ES: muestra candidatas y estado vacío en el dashboard; la web no incorpora
+  ninguna acción de archivado ni modifica archivos.
+- EN: shows candidates and the empty state in the dashboard; the web adds no
+  archive action and modifies no files.
+- Verificación / Verification: 16 pruebas Python, 3 pruebas Angular, build de
+  producción, auditoría npm y stack Docker 0.16 validados.
+- Detalles / Details: [docs/milestones/0.16.0.md](docs/milestones/0.16.0.md).
+
 ## 0.15.0 - Claude Code session registry / Registro de sesiones Claude Code
 
 - ES: añade un adaptador conservador para `CLAUDE_HOME/sessions/*.json` que

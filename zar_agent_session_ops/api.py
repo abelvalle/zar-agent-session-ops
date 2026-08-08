@@ -23,6 +23,7 @@ from .core import (
     load_policy,
     load_sessions,
     markdown_report,
+    policy_candidates,
     scan_claude,
     scan_codex,
     sync_sessions,
@@ -137,6 +138,16 @@ def create_app(
         return {
             "count": len(items),
             "threshold_hours": policy.blocked_after_hours,
+            "sessions": [_session_data(item) for item in items],
+        }
+
+    @app.get("/api/retention")
+    def retention() -> dict[str, object]:
+        policy = load_policy(config)
+        items = policy_candidates(load_sessions(database), policy)
+        return {
+            "count": len(items),
+            "archive_after_days": policy.archive_after_days,
             "sessions": [_session_data(item) for item in items],
         }
 

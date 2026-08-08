@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.15.0` ofrece un
+sesiones locales de agentes de programación. La versión `0.16.0` ofrece un
 inventario local de Codex y ChatGPT, incorpora el registro de sesiones de Claude
-Code y permite descargar informes Markdown desde el dashboard local.
+Code y permite revisar la política de retención desde el dashboard local.
 
 ## Funciones disponibles
 
@@ -28,6 +28,7 @@ Code y permite descargar informes Markdown desde el dashboard local.
 - Resume una sesión mediante un modelo Ollama local.
 - Genera un relevo Markdown mínimo para una nueva sesión Codex o ChatGPT.
 - Archiva sesiones individualmente o mediante una política configurable.
+- Previsualiza las sesiones que cumplirían la política sin mover archivos.
 - Simula cualquier archivado salvo que se indique `--apply`.
 - Importa metadatos y transcripciones bajo demanda desde un ZIP o JSON oficial
   de ChatGPT sin copiar las conversaciones a la base propia.
@@ -98,6 +99,7 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `POST /api/refresh`: inicia un escaneo Codex y Claude Code en segundo plano.
 - `GET /api/sessions`: inventario; admite los filtros `agent` y `status`.
 - `GET /api/blocked`: señal conservadora de posibles bloqueos.
+- `GET /api/retention`: vista previa de candidatas según la política local.
 - `GET /api/reports/{report_name}`: descarga `sessions`, `weekly` o `blocked`
   como Markdown.
 - `GET /api/sessions/{session_id}/github`: relaciones GitHub explícitas.
@@ -133,10 +135,10 @@ npm start
 
 Abre `http://127.0.0.1:4200`. El servidor de desarrollo redirige `/api/**` a
 la API local, por lo que no hace falta habilitar CORS. La interfaz incluye
-métricas de estado, filtros, paginación, revisión de posibles bloqueos, consulta
-GitHub bajo demanda, refresco real del inventario y estados de carga, error y
-ausencia de datos. También descarga los tres informes Markdown sin abrir ni
-copiar transcripciones. Se adapta a escritorio y móvil.
+métricas de estado, filtros, paginación, vista previa de retención, revisión de
+posibles bloqueos, consulta GitHub bajo demanda, refresco real del inventario y
+estados de carga, error y ausencia de datos. También descarga los tres informes
+Markdown sin abrir ni copiar transcripciones. Se adapta a escritorio y móvil.
 
 ## Relaciones con GitHub
 
@@ -233,6 +235,10 @@ python -m zar_agent_session_ops policy --apply
 Las sesiones ya archivadas por Codex nunca se vuelven a archivar mediante la
 política.
 
+El dashboard y `GET /api/retention` muestran únicamente el umbral y los
+metadatos de las candidatas. No exponen `archive_dir` ni ejecutan movimientos;
+el archivado continúa requiriendo `--apply` o `--apply-policy` en la CLI.
+
 ## Sesiones potencialmente bloqueadas
 
 Una sesión Codex activa se señala únicamente si su último evento terminal es
@@ -247,8 +253,7 @@ python -m zar_agent_session_ops blocked --output blocked-sessions.md
 ## Mantenimiento programado
 
 `maintain` ejecuta una vez el escaneo Codex y Claude Code, la política de
-retención y los
-informes `sessions.md`, `weekly.md` y `blocked.md`. Los escribe por defecto en
+retención y los informes `sessions.md`, `weekly.md` y `blocked.md`. Los escribe por defecto en
 `%USERPROFILE%\.zar-agent-session-ops\reports`. La política se simula salvo que
 se indique expresamente `--apply-policy`. Si se proporciona `--model`, añade
 `weekly-digest.md` mediante una sola llamada al Ollama local.
