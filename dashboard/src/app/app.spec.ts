@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.13.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.14.0' });
     http.expectOne('/api/sessions').flush({
       count: 2,
       sessions: [
@@ -39,12 +39,17 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Gobierno de sesiones');
-    expect(page.textContent).toContain('API 0.13.0');
+    expect(page.textContent).toContain('API 0.14.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Posible bloqueo');
     expect(page.textContent).toContain('1 - 2 de 2');
     expect(page.querySelector('mat-paginator')).toBeTruthy();
+    for (const report of ['sessions', 'weekly', 'blocked']) {
+      const link = page.querySelector<HTMLAnchorElement>(`a[href="/api/reports/${report}"]`);
+      expect(link).toBeTruthy();
+      expect(link?.hasAttribute('download')).toBe(true);
+    }
 
     page.querySelector<HTMLButtonElement>('.github-button')?.click();
     fixture.detectChanges();
@@ -88,7 +93,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.13.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.14.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     await fixture.whenStable();
@@ -114,7 +119,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.13.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.14.0' });
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],

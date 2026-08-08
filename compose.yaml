@@ -2,7 +2,7 @@ name: zar-agent-session-ops
 
 services:
   api:
-    image: zar-agent-session-ops-api:0.13.0
+    image: zar-agent-session-ops-api:0.14.0
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -31,7 +31,7 @@ services:
       start_period: 5m
 
   dashboard:
-    image: zar-agent-session-ops-dashboard:0.13.0
+    image: zar-agent-session-ops-dashboard:0.14.0
     build:
       context: .
       dockerfile: docker/dashboard.Dockerfile

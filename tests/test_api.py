@@ -43,7 +43,7 @@ class ApiTest(unittest.TestCase):
 
             with TestClient(create_app(database, config, root)) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.13.0"},
+                    {"status": "ok", "version": "0.14.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -55,6 +55,20 @@ class ApiTest(unittest.TestCase):
                 blocked = client.get("/api/blocked").json()
                 self.assertEqual(1, blocked["count"])
                 self.assertEqual(24, blocked["threshold_hours"])
+                for report_name in ("sessions", "weekly", "blocked"):
+                    response = client.get(f"/api/reports/{report_name}")
+                    self.assertEqual(200, response.status_code)
+                    self.assertEqual(
+                        f'attachment; filename="{report_name}.md"',
+                        response.headers["content-disposition"],
+                    )
+                    self.assertTrue(
+                        response.headers["content-type"].startswith("text/markdown")
+                    )
+                    self.assertTrue(response.text.startswith("# "))
+                self.assertEqual(
+                    422, client.get("/api/reports/unknown").status_code
+                )
                 with patch(
                     "zar_agent_session_ops.api.session_github_references",
                     return_value=[
@@ -91,6 +105,7 @@ class ApiTest(unittest.TestCase):
                         "/api/refresh",
                         "/api/sessions",
                         "/api/blocked",
+                        "/api/reports/{report_name}",
                         "/api/sessions/{session_id}/github",
                     },
                     set(schema["paths"]),

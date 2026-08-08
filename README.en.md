@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.13.0` provides a local Codex and ChatGPT inventory, conservative blocked
-session signals, and a bounded weekly operational digest generated locally.
+`0.14.0` provides a local Codex and ChatGPT inventory, conservative blocked
+session signals, and direct Markdown report downloads from the local dashboard.
 
 ## Available features
 
@@ -14,6 +14,7 @@ session signals, and a bounded weekly operational digest generated locally.
   those metadata are available.
 - Stores normalized metadata only in SQLite.
 - Produces general and weekly Markdown reports.
+- Downloads inventory, weekly activity, and blocked signals from the dashboard.
 - Consolidates weekly work, decisions, pending tasks, risks, and GitHub
   relationships through local Ollama.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
@@ -89,6 +90,8 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `POST /api/refresh`: starts a background Codex scan.
 - `GET /api/sessions`: inventory with optional `agent` and `status` filters.
 - `GET /api/blocked`: conservative potentially blocked signal.
+- `GET /api/reports/{report_name}`: downloads `sessions`, `weekly`, or `blocked`
+  as Markdown.
 - `GET /api/sessions/{session_id}/github`: explicit GitHub relationships.
 
 ```powershell
@@ -122,7 +125,8 @@ Open `http://127.0.0.1:4200`. The development server proxies `/api/**` to the
 local API, so CORS does not need to be enabled. The interface provides status
 metrics, filters, pagination, potentially blocked-session review, on-demand
 GitHub lookup, real inventory refresh, plus loading, error, and empty states. It
-adapts to desktop and mobile.
+also downloads all three Markdown reports without opening or copying transcripts.
+It adapts to desktop and mobile.
 
 ## GitHub relationships
 

@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.13.0` ofrece un
+sesiones locales de agentes de programación. La versión `0.14.0` ofrece un
 inventario local de Codex y ChatGPT, detección conservadora de posibles bloqueos
-y un informe operativo semanal generado de forma local y acotada.
+y descarga directa de informes Markdown desde el dashboard local.
 
 ## Funciones disponibles
 
@@ -15,6 +15,7 @@ y un informe operativo semanal generado de forma local y acotada.
   esos metadatos existen.
 - Guarda únicamente metadatos normalizados en SQLite.
 - Genera informes generales y semanales en Markdown.
+- Descarga inventario, actividad semanal y posibles bloqueos desde el dashboard.
 - Consolida trabajo, decisiones, pendientes, riesgos y relaciones GitHub de la
   semana mediante Ollama local.
 - Señala sesiones Codex potencialmente bloqueadas mediante eventos terminales.
@@ -93,6 +94,8 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `POST /api/refresh`: inicia un escaneo Codex en segundo plano.
 - `GET /api/sessions`: inventario; admite los filtros `agent` y `status`.
 - `GET /api/blocked`: señal conservadora de posibles bloqueos.
+- `GET /api/reports/{report_name}`: descarga `sessions`, `weekly` o `blocked`
+  como Markdown.
 - `GET /api/sessions/{session_id}/github`: relaciones GitHub explícitas.
 
 ```powershell
@@ -128,7 +131,8 @@ Abre `http://127.0.0.1:4200`. El servidor de desarrollo redirige `/api/**` a
 la API local, por lo que no hace falta habilitar CORS. La interfaz incluye
 métricas de estado, filtros, paginación, revisión de posibles bloqueos, consulta
 GitHub bajo demanda, refresco real del inventario y estados de carga, error y
-ausencia de datos. Se adapta a escritorio y móvil.
+ausencia de datos. También descarga los tres informes Markdown sin abrir ni
+copiar transcripciones. Se adapta a escritorio y móvil.
 
 ## Relaciones con GitHub
 

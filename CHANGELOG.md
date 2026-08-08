@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.14.0 - Dashboard Markdown exports / Exportaciones Markdown del dashboard
+
+- ES: expone inventario, actividad semanal y posibles bloqueos como descargas
+  `text/markdown` con nombres de archivo definidos por la API local.
+- EN: exposes inventory, weekly activity, and blocked signals as `text/markdown`
+  downloads with filenames defined by the local API.
+- ES: añade tres acciones accesibles al dashboard mediante enlaces nativos; no
+  incorpora estado, dependencias ni acceso a transcripciones.
+- EN: adds three accessible dashboard actions through native links, with no new
+  state, dependencies, or transcript access.
+- Verificación / Verification: 14 pruebas Python, 3 pruebas Angular, build de
+  producción, auditoría npm y stack Docker 0.14 validados.
+- Detalles / Details: [docs/milestones/0.14.0.md](docs/milestones/0.14.0.md).
+
 ## 0.13.0 - Weekly operational digest / Informe operativo semanal
 
 - ES: añade `weekly-digest` para consolidar trabajo, decisiones técnicas,

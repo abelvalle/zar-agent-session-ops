@@ -120,6 +120,19 @@ h2 {
   font-size: 16px;
 }
 
+.page-actions {
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .refresh-control {
   display: grid;
   justify-items: end;
@@ -408,6 +421,14 @@ code {
 
   .refresh-control {
     justify-items: start;
+  }
+
+  .page-actions {
+    justify-items: start;
+  }
+
+  .report-actions {
+    justify-content: flex-start;
   }
 
   .page-header button {

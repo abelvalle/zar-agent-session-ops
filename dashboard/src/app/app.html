@@ -29,22 +29,29 @@
         Revisa actividad, archivo y señales de bloqueo sin abrir las transcripciones.
       </p>
     </div>
-    <div class="refresh-control">
-      <button mat-flat-button type="button" (click)="refresh()" [disabled]="loading()">
-        {{ refreshState()?.status === 'running' ? 'Actualizando…' : 'Actualizar' }}
-      </button>
-      @if (refreshState(); as refresh) {
-        @if (refresh.status === 'running') {
-          <span role="status">Escaneando sesiones en segundo plano</span>
-        } @else if (refresh.status === 'completed') {
-          <span role="status">
-            Inventario actualizado: {{ refresh.count }}
-            {{ refresh.count === 1 ? 'sesión' : 'sesiones' }}
-          </span>
-        } @else if (refresh.status === 'failed') {
-          <span class="refresh-error" role="alert">{{ refresh.error }}</span>
+    <div class="page-actions">
+      <nav class="report-actions" aria-label="Descargar informes Markdown">
+        <a mat-stroked-button href="/api/reports/sessions" download>Inventario .md</a>
+        <a mat-stroked-button href="/api/reports/weekly" download>Semanal .md</a>
+        <a mat-stroked-button href="/api/reports/blocked" download>Bloqueos .md</a>
+      </nav>
+      <div class="refresh-control">
+        <button mat-flat-button type="button" (click)="refresh()" [disabled]="loading()">
+          {{ refreshState()?.status === 'running' ? 'Actualizando…' : 'Actualizar' }}
+        </button>
+        @if (refreshState(); as refresh) {
+          @if (refresh.status === 'running') {
+            <span role="status">Escaneando sesiones en segundo plano</span>
+          } @else if (refresh.status === 'completed') {
+            <span role="status">
+              Inventario actualizado: {{ refresh.count }}
+              {{ refresh.count === 1 ? 'sesión' : 'sesiones' }}
+            </span>
+          } @else if (refresh.status === 'failed') {
+            <span class="refresh-error" role="alert">{{ refresh.error }}</span>
+          }
         }
-      }
+      </div>
     </div>
   </header>
 

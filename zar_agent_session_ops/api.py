@@ -5,8 +5,10 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
+from typing import Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi.responses import Response
 
 from . import __version__
 from .core import (
@@ -15,11 +17,14 @@ from .core import (
     DEFAULT_SOURCE,
     Session,
     blocked_candidates,
+    blocked_report,
     find_session,
     load_policy,
     load_sessions,
+    markdown_report,
     scan_codex,
     sync_sessions,
+    weekly_report,
 )
 from .github import session_github_references
 
@@ -129,6 +134,25 @@ def create_app(
             "threshold_hours": policy.blocked_after_hours,
             "sessions": [_session_data(item) for item in items],
         }
+
+    @app.get("/api/reports/{report_name}", response_class=Response)
+    def report(
+        report_name: Literal["sessions", "weekly", "blocked"],
+    ) -> Response:
+        items = load_sessions(database)
+        if report_name == "sessions":
+            content = markdown_report(items, 7)
+        elif report_name == "weekly":
+            content = weekly_report(items)
+        else:
+            content = blocked_report(items, load_policy(config))
+        return Response(
+            content=content,
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": f'attachment; filename="{report_name}.md"'
+            },
+        )
 
     @app.get("/api/sessions/{session_id}/github")
     def github(session_id: str) -> dict[str, object]:
