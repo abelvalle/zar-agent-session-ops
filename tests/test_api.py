@@ -41,9 +41,11 @@ class ApiTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with TestClient(create_app(database, config, root)) as client:
+            with TestClient(
+                create_app(database, config, root, root / "claude")
+            ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.14.0"},
+                    {"status": "ok", "version": "0.15.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -133,18 +135,44 @@ class ApiTest(unittest.TestCase):
                 }
             )
             session_path.write_text(session_source, encoding="utf-8")
+            claude_source = root / "claude"
+            claude_session = claude_source / "sessions" / "1234.json"
+            claude_session.parent.mkdir(parents=True)
+            claude_session.write_text(
+                json.dumps(
+                    {
+                        "sessionId": "claude-refreshed-id",
+                        "cwd": "D:/claude-refreshed",
+                        "startedAt": 1_754_041_845_000,
+                        "version": "2.1.128",
+                        "kind": "interactive",
+                        "entrypoint": "claude-vscode",
+                    }
+                ),
+                encoding="utf-8",
+            )
             database = root / "sessions.db"
             sync_sessions(database, [])
 
-            with TestClient(create_app(database, root / "config.toml", source)) as client:
+            with TestClient(
+                create_app(database, root / "config.toml", source, claude_source)
+            ) as client:
                 accepted = client.post("/api/refresh")
                 self.assertEqual(202, accepted.status_code)
                 self.assertEqual("running", accepted.json()["status"])
                 completed = client.get("/api/refresh").json()
                 self.assertEqual("completed", completed["status"])
-                self.assertEqual(1, completed["count"])
+                self.assertEqual(2, completed["count"])
                 inventory = client.get("/api/sessions").json()
-                self.assertEqual("refreshed-id", inventory["sessions"][0]["id"])
+                self.assertEqual(2, inventory["count"])
+                sessions_by_id = {
+                    session["id"]: session for session in inventory["sessions"]
+                }
+                self.assertEqual("codex", sessions_by_id["refreshed-id"]["agent"])
+                self.assertEqual(
+                    "registered",
+                    sessions_by_id["claude-refreshed-id"]["status"],
+                )
 
                 source.rename(root / "missing-codex")
                 with patch("zar_agent_session_ops.api.LOGGER.exception"):
@@ -153,7 +181,7 @@ class ApiTest(unittest.TestCase):
                 self.assertEqual("failed", failed["status"])
                 self.assertNotIn(str(source), failed["error"])
                 inventory = client.get("/api/sessions").json()
-                self.assertEqual("refreshed-id", inventory["sessions"][0]["id"])
+                self.assertEqual(2, inventory["count"])
 
             moved_session = root / "missing-codex" / "sessions" / "session.jsonl"
             self.assertEqual(session_source, moved_session.read_text(encoding="utf-8"))

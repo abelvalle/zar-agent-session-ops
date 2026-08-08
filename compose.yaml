@@ -2,7 +2,7 @@ name: zar-agent-session-ops
 
 services:
   api:
-    image: zar-agent-session-ops-api:0.14.0
+    image: zar-agent-session-ops-api:0.15.0
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -11,10 +11,15 @@ services:
       ZAR_SESSION_CONFIG: /data/config.toml
       ZAR_SESSION_DB: /data/sessions.db
       ZAR_SESSION_SOURCE: /codex
+      ZAR_CLAUDE_SOURCE: /claude
     volumes:
       - type: bind
         source: ${CODEX_HOME:?Set CODEX_HOME to the local .codex directory}
         target: /codex
+        read_only: true
+      - type: bind
+        source: ${CLAUDE_HOME:-./docker/empty-claude}
+        target: /claude
         read_only: true
       - session-data:/data
     healthcheck:
@@ -31,7 +36,7 @@ services:
       start_period: 5m
 
   dashboard:
-    image: zar-agent-session-ops-dashboard:0.14.0
+    image: zar-agent-session-ops-dashboard:0.15.0
     build:
       context: .
       dockerfile: docker/dashboard.Dockerfile

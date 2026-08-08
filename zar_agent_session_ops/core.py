@@ -18,6 +18,9 @@ from urllib.request import Request, urlopen
 DEFAULT_DATABASE = Path.home() / ".zar-agent-session-ops" / "sessions.db"
 DEFAULT_CONFIG = Path.home() / ".zar-agent-session-ops" / "config.toml"
 DEFAULT_SOURCE = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+DEFAULT_CLAUDE_SOURCE = Path(
+    os.environ.get("CLAUDE_HOME", Path.home() / ".claude")
+)
 
 
 @dataclass(frozen=True)
@@ -160,6 +163,47 @@ def scan_codex(root: Path) -> list[Session]:
         if location.is_dir()
         for path in sorted(location.rglob("*.jsonl"))
     ]
+
+
+def scan_claude(root: Path) -> list[Session]:
+    sessions_dir = root / "sessions"
+    if not sessions_dir.is_dir():
+        return []
+    sessions: list[Session] = []
+    for path in sorted(sessions_dir.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict) or not data.get("sessionId"):
+            continue
+        modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        started_at = data.get("startedAt")
+        if isinstance(started_at, (int, float)) and not isinstance(started_at, bool):
+            started = _unix_timestamp(started_at / 1000, modified)
+        else:
+            started = modified
+        entrypoint = str(data.get("entrypoint") or "").strip()
+        version = str(data.get("version") or "").strip()
+        sessions.append(
+            Session(
+                session_id=str(data["sessionId"]),
+                agent="claude",
+                path=path.resolve(),
+                repository=str(data.get("cwd") or ""),
+                started_at=started,
+                last_activity_at=modified,
+                size_bytes=path.stat().st_size,
+                event_count=0,
+                status="registered",
+                title=(
+                    f"Claude Code ({entrypoint})" if entrypoint else "Claude Code session"
+                ),
+                origin=f"Claude Code {version}".strip(),
+                thread_source=str(data.get("kind") or ""),
+            )
+        )
+    return sessions
 
 
 def _chatgpt_conversations(data: object, path: Path, source_entry: str) -> list[Session]:

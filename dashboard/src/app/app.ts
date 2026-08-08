@@ -226,11 +226,23 @@ export class App {
   }
 
   protected agentName(agent: string): string {
-    return agent === 'chatgpt' ? 'ChatGPT' : agent === 'codex' ? 'Codex' : agent;
+    return agent === 'chatgpt'
+      ? 'ChatGPT'
+      : agent === 'codex'
+        ? 'Codex'
+        : agent === 'claude'
+          ? 'Claude Code'
+          : agent;
   }
 
   protected statusName(status: string): string {
-    return status === 'active' ? 'Activa' : status === 'archived' ? 'Archivada' : status;
+    return status === 'active'
+      ? 'Activa'
+      : status === 'archived'
+        ? 'Archivada'
+        : status === 'registered'
+          ? 'Registrada'
+          : status;
   }
 
   protected githubKindName(kind: GitHubReference['kind']): string {

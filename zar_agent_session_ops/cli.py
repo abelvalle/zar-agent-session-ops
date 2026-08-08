@@ -12,6 +12,7 @@ from .core import (
     archive_sessions,
     blocked_candidates,
     blocked_report,
+    DEFAULT_CLAUDE_SOURCE,
     DEFAULT_CONFIG,
     DEFAULT_DATABASE,
     DEFAULT_SOURCE,
@@ -22,6 +23,7 @@ from .core import (
     load_policy,
     markdown_report,
     policy_candidates,
+    scan_claude,
     scan_codex,
     scan_chatgpt_export,
     session_handoff,
@@ -42,8 +44,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     commands = parser.add_subparsers(dest="command", required=True)
 
-    scan = commands.add_parser("scan", help="index local Codex sessions")
+    scan = commands.add_parser("scan", help="index local agent sessions")
     scan.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    scan.add_argument("--claude-source", type=Path, default=DEFAULT_CLAUDE_SOURCE)
 
     listing = commands.add_parser("list", help="list indexed sessions")
     listing.add_argument("--stale-days", type=int, default=7)
@@ -104,6 +107,7 @@ def _parser() -> argparse.ArgumentParser:
 
     maintain = commands.add_parser("maintain", help="run one scheduler-safe cycle")
     maintain.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    maintain.add_argument("--claude-source", type=Path, default=DEFAULT_CLAUDE_SOURCE)
     maintain.add_argument("--output-dir", type=Path, default=DEFAULT_REPORT_DIR)
     maintain.add_argument("--apply-policy", action="store_true")
     maintain.add_argument("--model")
@@ -113,6 +117,7 @@ def _parser() -> argparse.ArgumentParser:
     serve = commands.add_parser("serve", help="serve the local API")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    serve.add_argument("--claude-source", type=Path, default=DEFAULT_CLAUDE_SOURCE)
     return parser
 
 
@@ -122,7 +127,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "scan":
             sessions = scan_codex(args.source)
             sync_sessions(args.db, sessions)
-            print(f"Indexed {len(sessions)} Codex sessions in {args.db}")
+            claude_sessions = scan_claude(args.claude_source)
+            sync_sessions(args.db, claude_sessions, agent="claude")
+            print(
+                f"Indexed {len(sessions)} Codex and {len(claude_sessions)} "
+                f"Claude Code sessions in {args.db}"
+            )
         elif args.command == "list":
             now = datetime.now(timezone.utc)
             for session in load_sessions(args.db):
@@ -238,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Imported {len(sessions)} ChatGPT conversations into {args.db}")
         elif args.command == "maintain":
             sync_sessions(args.db, scan_codex(args.source))
+            sync_sessions(args.db, scan_claude(args.claude_source), agent="claude")
             policy = load_policy(args.config)
             sessions = load_sessions(args.db)
             candidates = policy_candidates(sessions, policy)
@@ -282,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
             from .api import create_app
 
             uvicorn.run(
-                create_app(args.db, args.config, args.source),
+                create_app(args.db, args.config, args.source, args.claude_source),
                 host="127.0.0.1",
                 port=args.port,
             )

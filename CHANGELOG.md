@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15.0 - Claude Code session registry / Registro de sesiones Claude Code
+
+- ES: añade un adaptador conservador para `CLAUDE_HOME/sessions/*.json` que
+  normaliza identificador, proyecto, versión, tipo y punto de entrada.
+- EN: adds a conservative adapter for `CLAUDE_HOME/sessions/*.json`, normalizing
+  identifier, project, version, kind, and entrypoint.
+- ES: integra Claude Code en `scan`, `maintain`, refresco API, Docker Compose y
+  filtros del dashboard con estado explícito `registered`.
+- EN: integrates Claude Code into `scan`, `maintain`, API refresh, Docker
+  Compose, and dashboard filters with the explicit `registered` status.
+- Verificación / Verification: 16 pruebas Python, 3 pruebas Angular, build de
+  producción, auditoría npm, 478 sesiones Codex y 2 registros Claude reales.
+- Detalles / Details: [docs/milestones/0.15.0.md](docs/milestones/0.15.0.md).
+
 ## 0.14.0 - Dashboard Markdown exports / Exportaciones Markdown del dashboard
 
 - ES: expone inventario, actividad semanal y posibles bloqueos como descargas

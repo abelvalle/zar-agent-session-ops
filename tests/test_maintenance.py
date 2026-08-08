@@ -43,6 +43,8 @@ blocked_after_hours = 24
                         "maintain",
                         "--source",
                         str(codex_home),
+                        "--claude-source",
+                        str(root / ".claude"),
                         "--output-dir",
                         str(reports),
                     ]
@@ -74,6 +76,8 @@ blocked_after_hours = 24
                         "maintain",
                         "--source",
                         str(codex_home),
+                        "--claude-source",
+                        str(root / ".claude"),
                         "--output-dir",
                         str(reports),
                         "--model",

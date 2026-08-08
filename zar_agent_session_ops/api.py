@@ -13,6 +13,7 @@ from fastapi.responses import Response
 from . import __version__
 from .core import (
     DEFAULT_CONFIG,
+    DEFAULT_CLAUDE_SOURCE,
     DEFAULT_DATABASE,
     DEFAULT_SOURCE,
     Session,
@@ -22,6 +23,7 @@ from .core import (
     load_policy,
     load_sessions,
     markdown_report,
+    scan_claude,
     scan_codex,
     sync_sessions,
     weekly_report,
@@ -53,6 +55,7 @@ def create_app(
     database: Path = DEFAULT_DATABASE,
     config: Path = DEFAULT_CONFIG,
     source: Path = DEFAULT_SOURCE,
+    claude_source: Path = DEFAULT_CLAUDE_SOURCE,
 ) -> FastAPI:
     app = FastAPI(title="Zar Agent Session Ops", version=__version__)
     refresh_lock = Lock()
@@ -69,6 +72,8 @@ def create_app(
         try:
             items = scan_codex(source)
             sync_sessions(database, items)
+            claude_items = scan_claude(claude_source)
+            sync_sessions(database, claude_items, agent="claude")
         except Exception:
             LOGGER.exception("Session refresh failed")
             with refresh_lock:
@@ -81,7 +86,7 @@ def create_app(
             with refresh_lock:
                 refresh_state.update(
                     status="completed",
-                    count=len(items),
+                    count=len(items) + len(claude_items),
                     finished_at=datetime.now(timezone.utc).isoformat(),
                 )
 
@@ -177,4 +182,5 @@ app = create_app(
     Path(os.environ.get("ZAR_SESSION_DB", DEFAULT_DATABASE)),
     Path(os.environ.get("ZAR_SESSION_CONFIG", DEFAULT_CONFIG)),
     Path(os.environ.get("ZAR_SESSION_SOURCE", DEFAULT_SOURCE)),
+    Path(os.environ.get("ZAR_CLAUDE_SOURCE", DEFAULT_CLAUDE_SOURCE)),
 )
