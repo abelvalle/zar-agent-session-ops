@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
     http.expectOne('/api/sessions').flush({
       count: 3,
       sessions: [
@@ -46,7 +46,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.18.0');
+    expect(page.textContent).toContain('API 0.19.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -63,11 +63,14 @@ describe('App', () => {
     expect(page.textContent).toContain('1 - 3 de 3');
     expect(page.querySelector('mat-paginator')).toBeTruthy();
     expect(page.textContent).toContain('Weekly report');
+    expect(page.querySelector('.report-content h1')?.textContent).toContain('Weekly report');
+    expect(page.textContent).toContain('Consumo de Codex');
+    expect(page.textContent).toContain('84%');
     expect(page.querySelector<HTMLAnchorElement>('a[download]')?.href).toContain(
       '/api/reports/weekly',
     );
 
-    page.querySelector<HTMLButtonElement>('.github-button')?.click();
+    page.querySelector<HTMLButtonElement>('.details-button')?.click();
     fixture.detectChanges();
     http.expectOne('/api/sessions/active-id/github').flush({
       session_id: 'active-id',
@@ -86,6 +89,9 @@ describe('App', () => {
     });
     await fixture.whenStable();
     fixture.detectChanges();
+    expect(page.textContent).toContain('Ficha operativa');
+    expect(page.textContent).toContain('Consumo de tokens');
+    expect(page.textContent).toContain('Total procesado1500');
     expect(page.textContent).toContain('Ship the widget');
     expect(page.textContent).toContain('Fusionada');
   });
@@ -112,7 +118,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -130,10 +136,14 @@ describe('App', () => {
     expect(page.textContent).toContain('No se pudo cargar el informe');
     page.querySelector<HTMLButtonElement>('.report-retry')?.click();
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/reports/weekly').flush('# Weekly report\n\n- Active sessions: 2');
+    http
+      .expectOne('/api/reports/weekly')
+      .flush('# Weekly report\n\n- Active sessions: 2\n\n<script>alert("unsafe")</script>');
     await fixture.whenStable();
     fixture.detectChanges();
     expect(page.querySelector('.report-content')?.textContent).toContain('Active sessions: 2');
+    expect(page.querySelector('.report-content h1')?.textContent).toContain('Weekly report');
+    expect(page.querySelector('.report-content script')).toBeNull();
 
     [...page.querySelectorAll<HTMLButtonElement>('.report-selector button')]
       .find((button) => button.textContent?.includes('Bloqueos'))
@@ -167,7 +177,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -186,6 +196,7 @@ describe('App', () => {
     (fixture.nativeElement as HTMLElement)
       .querySelector<HTMLAnchorElement>('.attention-panel a')
       ?.click();
+    await new Promise((resolve) => setTimeout(resolve));
     fixture.detectChanges();
 
     const page = fixture.nativeElement as HTMLElement;
@@ -193,13 +204,16 @@ describe('App', () => {
     expect(page.querySelector('.session-title')?.textContent).toContain(
       'Exact blocked record',
     );
+    expect(page.querySelector('.session-row--located')).toBeTruthy();
+    expect(page.querySelector('.located-label')?.textContent).toContain('Localizada');
+    expect(page.textContent).toContain('Fila localizada: Exact blocked record');
   });
 
   it('refreshes the inventory after the background scan completes', async () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -237,7 +251,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.18.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],
@@ -275,5 +289,20 @@ function session(id: string, title: string, status: string, agent = 'codex') {
     origin: 'Codex Desktop',
     thread_source: 'user',
     last_event_type: 'task_started',
+    usage:
+      agent === 'codex'
+        ? {
+            observed_at: '2026-08-04T09:00:00Z',
+            input_tokens: 1200,
+            cached_input_tokens: 900,
+            output_tokens: 300,
+            reasoning_output_tokens: 100,
+            total_tokens: 1500,
+            model_context_window: 258400,
+            rate_limit_used_percent: 16,
+            rate_limit_window_minutes: 10080,
+            rate_limit_resets_at: '2026-08-11T09:00:00Z',
+          }
+        : null,
   };
 }

@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.19.0 - Session insight and usage / Diagnóstico y consumo de sesiones
+
+- ES: renderiza los informes Markdown como HTML legible dentro del dashboard y
+  conserva la descarga como acción secundaria.
+- EN: renders Markdown reports as readable HTML inside the dashboard and keeps
+  download as a secondary action.
+- ES: `Localizar` enfoca y resalta la fila exacta incluso cuando el identificador
+  aparece en varios registros.
+- EN: `Locate` focuses and highlights the exact row even when an identifier
+  appears in multiple records.
+- ES: sustituye la consulta GitHub aislada por una ficha operativa con metadatos,
+  consumo de tokens y relaciones GitHub.
+- EN: replaces the isolated GitHub lookup with an operational record containing
+  metadata, token usage, and GitHub relationships.
+- ES: extrae contadores `token_count`, muestra consumo histórico por sesión y la
+  última ventana Codex observada sin inventar una cuota fija de suscripción.
+- EN: extracts `token_count` counters, shows historical usage per session and the
+  latest observed Codex window without inventing a fixed subscription allowance.
+- Verificación / Verification: 17 pruebas Python, 5 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.19 validados.
+- Detalles / Details: [docs/milestones/0.19.0.md](docs/milestones/0.19.0.md).
+
 ## 0.18.0 - Inline Markdown reports / Informes Markdown integrados
 
 - ES: añade un lector dentro del dashboard para consultar los informes semanal,

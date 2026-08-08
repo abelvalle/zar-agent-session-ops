@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { HttpClient, httpResource } from '@angular/common/http';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -9,7 +9,21 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { marked } from 'marked';
 import { switchMap, takeWhile, timer } from 'rxjs';
+
+interface TokenUsage {
+  observed_at: string;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  reasoning_output_tokens: number;
+  total_tokens: number;
+  model_context_window: number;
+  rate_limit_used_percent: number | null;
+  rate_limit_window_minutes: number | null;
+  rate_limit_resets_at: string | null;
+}
 
 interface AgentSession {
   id: string;
@@ -24,6 +38,7 @@ interface AgentSession {
   origin: string;
   thread_source: string;
   last_event_type: string;
+  usage: TokenUsage | null;
 }
 
 interface InventoryResponse {
@@ -78,6 +93,7 @@ type ReportName = 'weekly' | 'blocked' | 'sessions';
   selector: 'app-root',
   imports: [
     DatePipe,
+    DecimalPipe,
     MatButtonModule,
     MatFormFieldModule,
     MatPaginatorModule,
@@ -99,13 +115,15 @@ export class App {
     'repository',
     'last_activity_at',
     'size_bytes',
-    'github',
+    'tokens',
+    'details',
   ];
   protected readonly agentFilter = signal('all');
   protected readonly statusFilter = signal('all');
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(25);
   protected readonly selectedSession = signal<AgentSession | null>(null);
+  protected readonly locatedSession = signal<AgentSession | null>(null);
   protected readonly refreshState = signal<RefreshResponse | null>(null);
   protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
     { id: 'weekly', label: 'Semanal' },
@@ -126,6 +144,41 @@ export class App {
   });
 
   protected readonly sessions = computed(() => this.inventory.value()?.sessions ?? []);
+  protected readonly reportHtml = computed(() =>
+    marked.parse(this.report.value() ?? '', { async: false, gfm: true }),
+  );
+  protected readonly usageSummary = computed(() => {
+    const unique = new Map<string, AgentSession>();
+    for (const session of this.sessions()) {
+      if (!session.usage) {
+        continue;
+      }
+      const stored = unique.get(session.id);
+      if (!stored?.usage || stored.usage.total_tokens < session.usage.total_tokens) {
+        unique.set(session.id, session);
+      }
+    }
+    const items = [...unique.values()];
+    const latest = items
+      .filter((session) => session.usage?.rate_limit_used_percent !== null)
+      .sort((left, right) =>
+        (right.usage?.observed_at ?? '').localeCompare(left.usage?.observed_at ?? ''),
+      )[0]?.usage;
+    return {
+      sessionCount: items.length,
+      inputTokens: items.reduce((total, session) => total + (session.usage?.input_tokens ?? 0), 0),
+      cachedInputTokens: items.reduce(
+        (total, session) => total + (session.usage?.cached_input_tokens ?? 0),
+        0,
+      ),
+      outputTokens: items.reduce(
+        (total, session) => total + (session.usage?.output_tokens ?? 0),
+        0,
+      ),
+      totalTokens: items.reduce((total, session) => total + (session.usage?.total_tokens ?? 0), 0),
+      latest,
+    };
+  });
   protected readonly selectedReportLabel = computed(
     () =>
       this.reportOptions.find((option) => option.id === this.selectedReport())?.label ??
@@ -242,16 +295,19 @@ export class App {
   }
 
   protected setAgent(value: string): void {
+    this.locatedSession.set(null);
     this.agentFilter.set(value);
     this.pageIndex.set(0);
   }
 
   protected setStatus(value: string): void {
+    this.locatedSession.set(null);
     this.statusFilter.set(value);
     this.pageIndex.set(0);
   }
 
   protected setPage(event: PageEvent): void {
+    this.locatedSession.set(null);
     this.pageIndex.set(event.pageIndex);
     this.pageSize.set(event.pageSize);
   }
@@ -270,14 +326,35 @@ export class App {
         item.size_bytes === session.size_bytes,
     );
     this.pageIndex.set(Math.max(0, Math.floor(index / this.pageSize())));
+    this.locatedSession.set(session);
+    setTimeout(() => {
+      const row = document.getElementById(this.sessionDomId(session));
+      if (typeof row?.scrollIntoView === 'function') {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      row?.focus({ preventScroll: true });
+    });
   }
 
-  protected loadGitHub(session: AgentSession): void {
+  protected openDetails(session: AgentSession): void {
     this.selectedSession.set(session);
   }
 
-  protected closeGitHub(): void {
+  protected closeDetails(): void {
     this.selectedSession.set(null);
+  }
+
+  protected isLocated(session: AgentSession): boolean {
+    const located = this.locatedSession();
+    return !!located && this.sessionRecordKey(located) === this.sessionRecordKey(session);
+  }
+
+  protected sessionDomId(session: AgentSession): string {
+    return `session-${this.sessionRecordKey(session).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  }
+
+  private sessionRecordKey(session: AgentSession): string {
+    return `${session.id}:${session.last_activity_at}:${session.size_bytes}`;
   }
 
   protected agentName(agent: string): string {
@@ -326,5 +403,40 @@ export class App {
       return '—';
     }
     return seconds < 1 ? `${Math.round(seconds * 1000)} ms` : `${seconds.toFixed(1)} s`;
+  }
+
+  protected formatTokens(tokens: number, compact = false): string {
+    const formatter = new Intl.NumberFormat('es-ES', {
+      maximumFractionDigits: compact ? 1 : 0,
+    });
+    if (!compact) {
+      return formatter.format(tokens);
+    }
+    if (tokens >= 1_000_000) {
+      return `${formatter.format(tokens / 1_000_000)} M`;
+    }
+    if (tokens >= 1_000) {
+      return `${formatter.format(tokens / 1_000)} mil`;
+    }
+    return formatter.format(tokens);
+  }
+
+  protected availablePercent(usage: TokenUsage): number {
+    return Math.max(0, 100 - (usage.rate_limit_used_percent ?? 0));
+  }
+
+  protected uncachedInput(usage: TokenUsage): number {
+    return Math.max(0, usage.input_tokens - usage.cached_input_tokens);
+  }
+
+  protected formatWindow(minutes: number | null): string {
+    if (minutes === null) {
+      return 'Ventana no indicada';
+    }
+    if (minutes % (24 * 60) === 0) {
+      const days = minutes / (24 * 60);
+      return `${days} ${days === 1 ? 'día' : 'días'}`;
+    }
+    return `${minutes} min`;
   }
 }

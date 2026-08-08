@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from zar_agent_session_ops.api import create_app
-from zar_agent_session_ops.core import Session, sync_sessions
+from zar_agent_session_ops.core import Session, TokenUsage, sync_sessions
 
 
 class ApiTest(unittest.TestCase):
@@ -32,6 +32,20 @@ class ApiTest(unittest.TestCase):
                         event_count=2,
                         title="API test",
                         last_event_type="task_started",
+                        usage=TokenUsage(
+                            observed_at=datetime(2026, 1, 1, 1, tzinfo=timezone.utc),
+                            input_tokens=1200,
+                            cached_input_tokens=900,
+                            output_tokens=300,
+                            reasoning_output_tokens=100,
+                            total_tokens=1500,
+                            model_context_window=258400,
+                            rate_limit_used_percent=16.0,
+                            rate_limit_window_minutes=10080,
+                            rate_limit_resets_at=datetime(
+                                2026, 1, 8, tzinfo=timezone.utc
+                            ),
+                        ),
                     )
                 ],
             )
@@ -63,7 +77,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.18.0"},
+                    {"status": "ok", "version": "0.19.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -72,6 +86,11 @@ class ApiTest(unittest.TestCase):
                 self.assertEqual(1, inventory["count"])
                 self.assertNotIn("path", inventory["sessions"][0])
                 self.assertNotIn("source_entry", inventory["sessions"][0])
+                self.assertEqual(1500, inventory["sessions"][0]["usage"]["total_tokens"])
+                self.assertEqual(
+                    16.0,
+                    inventory["sessions"][0]["usage"]["rate_limit_used_percent"],
+                )
                 blocked = client.get("/api/blocked").json()
                 self.assertEqual(1, blocked["count"])
                 self.assertEqual(24, blocked["threshold_hours"])
@@ -84,7 +103,7 @@ class ApiTest(unittest.TestCase):
                     response = client.get(f"/api/reports/{report_name}")
                     self.assertEqual(200, response.status_code)
                     self.assertEqual(
-                        f'attachment; filename="{report_name}.md"',
+                        f'inline; filename="{report_name}.md"',
                         response.headers["content-disposition"],
                     )
                     self.assertTrue(

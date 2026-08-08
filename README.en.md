@@ -3,9 +3,9 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.18.0` makes Markdown reports readable inside the dashboard, keeps download
-as an optional action, and preserves the operational view and incremental
-refresh.
+`0.19.0` turns the dashboard into a diagnostic surface: it renders Markdown,
+locates and highlights the exact row, opens a useful session record, and
+quantifies Codex usage.
 
 ## Available features
 
@@ -17,8 +17,11 @@ refresh.
   those metadata are available.
 - Stores normalized metadata only in SQLite.
 - Produces general and weekly Markdown reports.
-- Reads inventory, weekly activity, and blocked signals inside the dashboard,
-  with an optional download for the selected Markdown report.
+- Renders inventory, weekly activity, and blocked signals as readable HTML
+  inside the dashboard; Markdown download remains optional.
+- Extracts Codex-recorded input, cached input, output, and reasoning tokens.
+- Shows cumulative usage per session and the latest observed subscription
+  window, including available percentage and reset time.
 - Consolidates weekly work, decisions, pending tasks, risks, and GitHub
   relationships through local Ollama.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
@@ -26,7 +29,10 @@ refresh.
 - Exposes health, sessions, and blocked signals through a local API.
 - Shows attention signals first and keeps the full inventory as a secondary
   lookup surface.
-- Locates the exact session behind each signal in the filtered inventory.
+- Locates the exact session behind each signal, moves focus to its row, and
+  keeps that row highlighted.
+- Opens an operational record with origin, type, events, size, token usage, and
+  GitHub relationships; the record remains useful when no GitHub links exist.
 - Resolves explicit GitHub Issue, Pull Request, and commit links.
 - Summarizes a session with a local Ollama model.
 - Generates a minimal Markdown handoff for a new Codex or ChatGPT session.
@@ -99,7 +105,8 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `GET /api/health`: status and version.
 - `GET /api/refresh`: state of the latest requested scan.
 - `POST /api/refresh`: starts a background Codex and Claude Code scan.
-- `GET /api/sessions`: inventory with optional `agent` and `status` filters.
+- `GET /api/sessions`: inventory with token telemetry when available and optional
+  `agent` and `status` filters.
 - `GET /api/blocked`: conservative potentially blocked signal.
 - `GET /api/retention`: candidate preview based on local policy.
 - `GET /api/reports/{report_name}`: downloads `sessions`, `weekly`, or `blocked`
@@ -137,10 +144,27 @@ Open `http://127.0.0.1:4200`. The development server proxies `/api/**` to the
 local API, so CORS does not need to be enabled. The interface opens with an
 attention queue for potentially blocked sessions and archive candidates,
 explains each signal, and locates it in the filtered inventory. Its report reader
-opens the weekly report by default and switches between weekly, blocked, and
-inventory reports without leaving the page; download remains secondary. The UI
-also provides status metrics, filters, pagination, on-demand GitHub lookup, plus
-loading, error, and empty states. It adapts to desktop and mobile.
+renders Markdown headings, lists, and tables inside the page and switches between
+weekly, blocked, and inventory reports; download remains secondary. `Locate`
+moves focus to the exact row and highlights it. `View details` opens metadata,
+token usage, and GitHub relationships in a record that always provides context.
+It adapts to desktop and mobile.
+
+## Token and subscription metrics
+
+Codex includes local `token_count` events with cumulative input, cached input,
+output, reasoning, total processed tokens, and context window. The 0.19 scan
+stores only those counters and timestamps in SQLite; it adds no conversation
+content. The first refresh after migration reads existing JSONL files once, then
+subsequent refreshes return to incremental scanning.
+
+The UI deduplicates by session identifier for historical totals and uses the
+latest event to show the used percentage, available percentage, and Codex window
+reset. That percentage is a local snapshot, not a live account query. ChatGPT
+Work and Codex share usage, credits, and limits, but OpenAI does not publish a
+fixed subscription allowance that can be converted into a total token count.
+Claude Code, imported ChatGPT, and older sessions can show `Unavailable` when
+their source has no such events.
 
 ## GitHub relationships
 

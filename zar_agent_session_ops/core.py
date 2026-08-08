@@ -24,6 +24,20 @@ DEFAULT_CLAUDE_SOURCE = Path(
 
 
 @dataclass(frozen=True)
+class TokenUsage:
+    observed_at: datetime
+    input_tokens: int
+    cached_input_tokens: int
+    output_tokens: int
+    reasoning_output_tokens: int
+    total_tokens: int
+    model_context_window: int
+    rate_limit_used_percent: float | None = None
+    rate_limit_window_minutes: int | None = None
+    rate_limit_resets_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class Session:
     session_id: str
     agent: str
@@ -39,6 +53,8 @@ class Session:
     thread_source: str = ""
     source_entry: str = ""
     last_event_type: str = ""
+    usage: TokenUsage | None = None
+    usage_scanned: bool = False
 
 
 @dataclass(frozen=True)
@@ -68,6 +84,55 @@ def _timestamp(value: object, fallback: datetime) -> datetime:
         return fallback
 
 
+def _non_negative_int(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0
+    return max(0, int(value))
+
+
+def _token_usage(payload: dict[str, object], observed_at: datetime) -> TokenUsage | None:
+    if payload.get("type") != "token_count":
+        return None
+    info = payload.get("info")
+    if not isinstance(info, dict):
+        return None
+    total = info.get("total_token_usage")
+    if not isinstance(total, dict):
+        return None
+
+    rate_limits = payload.get("rate_limits")
+    primary = rate_limits.get("primary") if isinstance(rate_limits, dict) else None
+    used_percent: float | None = None
+    window_minutes: int | None = None
+    resets_at: datetime | None = None
+    if isinstance(primary, dict):
+        used = primary.get("used_percent")
+        if isinstance(used, (int, float)) and not isinstance(used, bool):
+            used_percent = min(100.0, max(0.0, float(used)))
+        window = primary.get("window_minutes")
+        if isinstance(window, (int, float)) and not isinstance(window, bool):
+            window_minutes = max(0, int(window))
+        reset = primary.get("resets_at")
+        if isinstance(reset, (int, float)) and not isinstance(reset, bool):
+            try:
+                resets_at = datetime.fromtimestamp(reset, timezone.utc)
+            except (OSError, OverflowError, ValueError):
+                pass
+
+    return TokenUsage(
+        observed_at=observed_at,
+        input_tokens=_non_negative_int(total.get("input_tokens")),
+        cached_input_tokens=_non_negative_int(total.get("cached_input_tokens")),
+        output_tokens=_non_negative_int(total.get("output_tokens")),
+        reasoning_output_tokens=_non_negative_int(total.get("reasoning_output_tokens")),
+        total_tokens=_non_negative_int(total.get("total_tokens")),
+        model_context_window=_non_negative_int(info.get("model_context_window")),
+        rate_limit_used_percent=used_percent,
+        rate_limit_window_minutes=window_minutes,
+        rate_limit_resets_at=resets_at,
+    )
+
+
 def load_session_titles(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
@@ -94,6 +159,7 @@ def read_codex_session(
     origin = ""
     thread_source = ""
     last_event_type = ""
+    usage: TokenUsage | None = None
     event_count = 0
 
     with path.open(encoding="utf-8", errors="replace") as stream:
@@ -113,12 +179,16 @@ def read_codex_session(
 
             if item.get("type") == "event_msg":
                 payload = item.get("payload")
-                if isinstance(payload, dict) and payload.get("type") in {
-                    "task_started",
-                    "task_complete",
-                    "turn_aborted",
-                }:
-                    last_event_type = str(payload["type"])
+                if isinstance(payload, dict):
+                    snapshot = _token_usage(payload, observed_at)
+                    if snapshot is not None:
+                        usage = snapshot
+                    if payload.get("type") in {
+                        "task_started",
+                        "task_complete",
+                        "turn_aborted",
+                    }:
+                        last_event_type = str(payload["type"])
 
             if item.get("type") == "session_meta":
                 payload = item.get("payload") or {}
@@ -145,6 +215,8 @@ def read_codex_session(
         origin=str(origin),
         thread_source=thread_source,
         last_event_type=last_event_type,
+        usage=usage,
+        usage_scanned=True,
     )
 
 
@@ -175,6 +247,7 @@ def scan_codex(
                 known is not None
                 and known.status == status
                 and known.size_bytes == path.stat().st_size
+                and known.usage_scanned
             ):
                 sessions.append(
                     replace(known, title=titles.get(known.session_id, known.title))
@@ -382,7 +455,18 @@ def _create_sessions_table(connection: sqlite3.Connection) -> None:
             origin TEXT NOT NULL DEFAULT '',
             thread_source TEXT NOT NULL DEFAULT '',
             source_entry TEXT NOT NULL DEFAULT '',
-            last_event_type TEXT NOT NULL DEFAULT ''
+            last_event_type TEXT NOT NULL DEFAULT '',
+            usage_observed_at TEXT,
+            input_tokens INTEGER,
+            cached_input_tokens INTEGER,
+            output_tokens INTEGER,
+            reasoning_output_tokens INTEGER,
+            total_tokens INTEGER,
+            model_context_window INTEGER,
+            rate_limit_used_percent REAL,
+            rate_limit_window_minutes INTEGER,
+            rate_limit_resets_at TEXT,
+            usage_scanned INTEGER NOT NULL DEFAULT 0
         )
         """
     )
@@ -407,6 +491,17 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             "thread_source": "''",
             "source_entry": "''",
             "last_event_type": "''",
+            "usage_observed_at": "NULL",
+            "input_tokens": "NULL",
+            "cached_input_tokens": "NULL",
+            "output_tokens": "NULL",
+            "reasoning_output_tokens": "NULL",
+            "total_tokens": "NULL",
+            "model_context_window": "NULL",
+            "rate_limit_used_percent": "NULL",
+            "rate_limit_window_minutes": "NULL",
+            "rate_limit_resets_at": "NULL",
+            "usage_scanned": "0",
         }
         values = [
             "agent || ':' || session_id || ':' || path",
@@ -425,7 +520,11 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
             INSERT INTO sessions (
                 record_id, path, session_id, agent, repository, started_at,
                 last_activity_at, size_bytes, event_count, status, title,
-                origin, thread_source, source_entry, last_event_type
+                origin, thread_source, source_entry, last_event_type,
+                usage_observed_at, input_tokens, cached_input_tokens, output_tokens,
+                reasoning_output_tokens, total_tokens, model_context_window,
+                rate_limit_used_percent, rate_limit_window_minutes, rate_limit_resets_at,
+                usage_scanned
             )
             SELECT """
             + ", ".join(values)
@@ -441,6 +540,17 @@ def _ensure_schema(connection: sqlite3.Connection) -> None:
         ("thread_source", "TEXT NOT NULL DEFAULT ''"),
         ("source_entry", "TEXT NOT NULL DEFAULT ''"),
         ("last_event_type", "TEXT NOT NULL DEFAULT ''"),
+        ("usage_observed_at", "TEXT"),
+        ("input_tokens", "INTEGER"),
+        ("cached_input_tokens", "INTEGER"),
+        ("output_tokens", "INTEGER"),
+        ("reasoning_output_tokens", "INTEGER"),
+        ("total_tokens", "INTEGER"),
+        ("model_context_window", "INTEGER"),
+        ("rate_limit_used_percent", "REAL"),
+        ("rate_limit_window_minutes", "INTEGER"),
+        ("rate_limit_resets_at", "TEXT"),
+        ("usage_scanned", "INTEGER NOT NULL DEFAULT 0"),
     ):
         if name not in existing:
             connection.execute(f"ALTER TABLE sessions ADD COLUMN {name} {definition}")
@@ -456,8 +566,12 @@ def sync_sessions(database: Path, sessions: list[Session], agent: str = "codex")
             INSERT INTO sessions (
                 record_id, path, session_id, agent, repository, started_at,
                 last_activity_at, size_bytes, event_count, status, title, origin,
-                thread_source, source_entry, last_event_type
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                thread_source, source_entry, last_event_type, usage_observed_at,
+                input_tokens, cached_input_tokens, output_tokens,
+                reasoning_output_tokens, total_tokens, model_context_window,
+                rate_limit_used_percent, rate_limit_window_minutes, rate_limit_resets_at,
+                usage_scanned
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -476,6 +590,19 @@ def sync_sessions(database: Path, sessions: list[Session], agent: str = "codex")
                     session.thread_source,
                     session.source_entry,
                     session.last_event_type,
+                    session.usage.observed_at.isoformat() if session.usage else None,
+                    session.usage.input_tokens if session.usage else None,
+                    session.usage.cached_input_tokens if session.usage else None,
+                    session.usage.output_tokens if session.usage else None,
+                    session.usage.reasoning_output_tokens if session.usage else None,
+                    session.usage.total_tokens if session.usage else None,
+                    session.usage.model_context_window if session.usage else None,
+                    session.usage.rate_limit_used_percent if session.usage else None,
+                    session.usage.rate_limit_window_minutes if session.usage else None,
+                    session.usage.rate_limit_resets_at.isoformat()
+                    if session.usage and session.usage.rate_limit_resets_at
+                    else None,
+                    session.usage_scanned,
                 )
                 for session in sessions
             ],
@@ -491,7 +618,11 @@ def load_sessions(database: Path) -> list[Session]:
             """
             SELECT session_id, agent, path, repository, started_at,
                    last_activity_at, size_bytes, event_count, status, title,
-                   origin, thread_source, source_entry, last_event_type
+                   origin, thread_source, source_entry, last_event_type,
+                   usage_observed_at, input_tokens, cached_input_tokens,
+                   output_tokens, reasoning_output_tokens, total_tokens,
+                   model_context_window, rate_limit_used_percent,
+                   rate_limit_window_minutes, rate_limit_resets_at, usage_scanned
             FROM sessions ORDER BY last_activity_at DESC
             """
         ).fetchall()
@@ -511,6 +642,21 @@ def load_sessions(database: Path) -> list[Session]:
             thread_source=row[11],
             source_entry=row[12],
             last_event_type=row[13],
+            usage=TokenUsage(
+                observed_at=datetime.fromisoformat(row[14]),
+                input_tokens=row[15],
+                cached_input_tokens=row[16],
+                output_tokens=row[17],
+                reasoning_output_tokens=row[18],
+                total_tokens=row[19],
+                model_context_window=row[20],
+                rate_limit_used_percent=row[21],
+                rate_limit_window_minutes=row[22],
+                rate_limit_resets_at=datetime.fromisoformat(row[23]) if row[23] else None,
+            )
+            if row[14]
+            else None,
+            usage_scanned=bool(row[24]),
         )
         for row in rows
     ]

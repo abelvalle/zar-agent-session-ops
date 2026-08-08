@@ -79,6 +79,69 @@
       </article>
     </section>
 
+    <section class="usage-overview" aria-labelledby="usage-title">
+      <div class="section-heading usage-heading">
+        <div>
+          <h2 id="usage-title">Consumo de Codex</h2>
+          <p>Tokens registrados por sesión y estado de la última ventana de uso observada.</p>
+        </div>
+        <span>{{ usageSummary().sessionCount }} sesiones con métricas</span>
+      </div>
+      <div class="usage-columns">
+        <article class="usage-limit">
+          @if (usageSummary().latest; as usage) {
+            <div class="usage-limit__value">
+              <div>
+                <span>Disponible en la ventana</span>
+                <strong>{{ availablePercent(usage) | number: '1.0-1' }}%</strong>
+              </div>
+              <span>{{ usage.rate_limit_used_percent | number: '1.0-1' }}% consumido</span>
+            </div>
+            <mat-progress-bar
+              mode="determinate"
+              [value]="usage.rate_limit_used_percent ?? 0"
+              aria-label="Porcentaje consumido de la ventana Codex"
+            />
+            <p>
+              Ventana de {{ formatWindow(usage.rate_limit_window_minutes) }}.
+              @if (usage.rate_limit_resets_at) {
+                Reinicia el {{ usage.rate_limit_resets_at | date: 'yyyy-MM-dd HH:mm' }}.
+              }
+            </p>
+          } @else {
+            <p class="usage-empty">
+              Todavía no hay una instantánea de límite en las sesiones indexadas.
+            </p>
+          }
+        </article>
+        <article class="usage-totals">
+          <div>
+            <span>Total procesado</span>
+            <strong>{{ formatTokens(usageSummary().totalTokens, true) }}</strong>
+          </div>
+          <dl>
+            <div>
+              <dt>Entrada</dt>
+              <dd>{{ formatTokens(usageSummary().inputTokens, true) }}</dd>
+            </div>
+            <div>
+              <dt>En caché</dt>
+              <dd>{{ formatTokens(usageSummary().cachedInputTokens, true) }}</dd>
+            </div>
+            <div>
+              <dt>Salida</dt>
+              <dd>{{ formatTokens(usageSummary().outputTokens, true) }}</dd>
+            </div>
+          </dl>
+        </article>
+      </div>
+      <p class="usage-note">
+        La suscripción no publica una cuota fija equivalente en tokens. El porcentaje procede
+        del último evento local de Codex; los tokens son consumo acumulado registrado en cada
+        sesión.
+      </p>
+    </section>
+
     <section class="attention" aria-labelledby="attention-title">
       <header class="attention-heading">
         <div>
@@ -210,11 +273,12 @@
           </button>
         </div>
       } @else {
-        <pre
+        <article
           class="report-content"
           tabindex="0"
           [attr.aria-label]="'Contenido del informe ' + selectedReportLabel()"
-        >{{ report.value() }}</pre>
+          [innerHTML]="reportHtml()"
+        ></article>
       }
     </section>
 
@@ -246,6 +310,13 @@
         </div>
       </div>
 
+      @if (locatedSession(); as located) {
+        <p class="located-message" role="status">
+          <strong>Fila localizada:</strong> {{ located.title || located.id }}.
+          Está resaltada en la página actual.
+        </p>
+      }
+
       <div class="table-wrap">
         <table
           mat-table
@@ -258,6 +329,9 @@
             <td mat-cell *matCellDef="let session">
               <span class="session-title">{{ session.title || 'Sin título' }}</span>
               <span class="session-id">{{ session.id }}</span>
+              @if (isLocated(session)) {
+                <span class="located-label">Localizada</span>
+              }
             </td>
           </ng-container>
 
@@ -297,23 +371,41 @@
             <td mat-cell *matCellDef="let session">{{ formatBytes(session.size_bytes) }}</td>
           </ng-container>
 
-          <ng-container matColumnDef="github">
-            <th mat-header-cell *matHeaderCellDef>GitHub</th>
+          <ng-container matColumnDef="tokens">
+            <th mat-header-cell *matHeaderCellDef>Tokens</th>
+            <td mat-cell *matCellDef="let session">
+              @if (session.usage) {
+                {{ formatTokens(session.usage.total_tokens, true) }}
+              } @else {
+                <span class="not-available">No disponible</span>
+              }
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="details">
+            <th mat-header-cell *matHeaderCellDef>Detalle</th>
             <td mat-cell *matCellDef="let session">
               <button
                 mat-button
                 type="button"
-                class="github-button"
-                [attr.aria-label]="'Consultar GitHub para ' + (session.title || session.id)"
-                (click)="loadGitHub(session)"
+                class="details-button"
+                [attr.aria-label]="'Ver detalle de ' + (session.title || session.id)"
+                (click)="openDetails(session)"
               >
-                Consultar
+                Ver detalle
               </button>
             </td>
           </ng-container>
 
           <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+          <tr
+            mat-row
+            *matRowDef="let row; columns: displayedColumns"
+            [id]="sessionDomId(row)"
+            [class.session-row--located]="isLocated(row)"
+            [attr.aria-current]="isLocated(row) ? 'true' : null"
+            tabindex="-1"
+          ></tr>
           <tr class="mat-row empty-row" *matNoDataRow>
             <td class="mat-cell" [attr.colspan]="displayedColumns.length">
               No hay sesiones para estos filtros.
@@ -332,48 +424,103 @@
     </section>
 
     @if (selectedSession(); as selected) {
-      <section class="github-panel" aria-labelledby="github-title" aria-live="polite">
-        <div class="github-heading">
+      <section class="session-detail" aria-labelledby="detail-title" aria-live="polite">
+        <div class="detail-heading">
           <div>
-            <p class="page-kicker">Relaciones explícitas</p>
-            <h2 id="github-title">GitHub · {{ selected.title || selected.id }}</h2>
+            <p class="page-kicker">Ficha operativa</p>
+            <h2 id="detail-title">{{ selected.title || 'Sesión sin título' }}</h2>
+            <span class="session-id">{{ selected.id }}</span>
           </div>
-          <button mat-button type="button" (click)="closeGitHub()">Cerrar</button>
+          <button mat-button type="button" (click)="closeDetails()">Cerrar</button>
         </div>
 
-        @if (github.isLoading()) {
-          <mat-progress-bar mode="indeterminate" aria-label="Consultando GitHub" />
-        } @else if (github.error()) {
-          <p class="github-message github-message--error">
-            No se pudo consultar GitHub. Revisa la conexión o el token configurado.
-          </p>
-        } @else if (github.value(); as result) {
-          @if (result.count === 0) {
-            <p class="github-message">
-              No hay enlaces explícitos a Issues, Pull Requests o commits en esta sesión.
+        <dl class="detail-grid">
+          <div><dt>Agente</dt><dd>{{ agentName(selected.agent) }}</dd></div>
+          <div><dt>Estado</dt><dd>{{ statusName(selected.status) }}</dd></div>
+          <div><dt>Origen</dt><dd>{{ selected.origin || 'No detectado' }}</dd></div>
+          <div><dt>Tipo</dt><dd>{{ selected.thread_source || 'No detectado' }}</dd></div>
+          <div><dt>Inicio</dt><dd>{{ selected.started_at | date: 'yyyy-MM-dd HH:mm' }}</dd></div>
+          <div>
+            <dt>Última actividad</dt>
+            <dd>{{ selected.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}</dd>
+          </div>
+          <div><dt>Eventos</dt><dd>{{ selected.event_count | number: '1.0-0' }}</dd></div>
+          <div><dt>Tamaño</dt><dd>{{ formatBytes(selected.size_bytes) }}</dd></div>
+          <div class="detail-grid__wide">
+            <dt>Repositorio</dt><dd>{{ selected.repository || 'No detectado' }}</dd>
+          </div>
+          <div class="detail-grid__wide">
+            <dt>Último evento terminal</dt>
+            <dd>{{ selected.last_event_type || 'No disponible' }}</dd>
+          </div>
+        </dl>
+
+        <section class="token-detail" aria-labelledby="token-detail-title">
+          <div>
+            <h3 id="token-detail-title">Consumo de tokens</h3>
+            <p>Acumulado registrado en el último evento de uso de esta sesión.</p>
+          </div>
+          @if (selected.usage; as usage) {
+            <dl class="token-breakdown">
+              <div><dt>Total procesado</dt><dd>{{ formatTokens(usage.total_tokens) }}</dd></div>
+              <div><dt>Entrada no cacheada</dt><dd>{{ formatTokens(uncachedInput(usage)) }}</dd></div>
+              <div><dt>Entrada en caché</dt><dd>{{ formatTokens(usage.cached_input_tokens) }}</dd></div>
+              <div><dt>Salida</dt><dd>{{ formatTokens(usage.output_tokens) }}</dd></div>
+              <div><dt>Razonamiento</dt><dd>{{ formatTokens(usage.reasoning_output_tokens) }}</dd></div>
+              <div><dt>Ventana del modelo</dt><dd>{{ formatTokens(usage.model_context_window) }}</dd></div>
+            </dl>
+            <p class="token-observed">
+              Observado el {{ usage.observed_at | date: 'yyyy-MM-dd HH:mm' }}.
+              @if (usage.rate_limit_used_percent !== null) {
+                La ventana de suscripción estaba al
+                {{ usage.rate_limit_used_percent | number: '1.0-1' }}%.
+              }
             </p>
           } @else {
-            <ul class="github-list">
-              @for (reference of result.references; track reference.url) {
-                <li>
-                  <div>
-                    <span class="github-kind">
-                      {{ githubKindName(reference.kind) }} · {{ reference.identifier }}
-                    </span>
-                    <a [href]="reference.url" target="_blank" rel="noopener noreferrer">
-                      {{ reference.title || reference.owner + '/' + reference.repository }}
-                    </a>
-                  </div>
-                  @if (reference.error) {
-                    <span class="github-reference-error">No disponible</span>
-                  } @else if (reference.state) {
-                    <span class="github-state">{{ githubStateName(reference.state) }}</span>
-                  }
-                </li>
-              }
-            </ul>
+            <p class="detail-empty">
+              Esta fuente no incluye eventos de tokens. Es habitual en Claude Code, ChatGPT
+              importado y sesiones Codex antiguas.
+            </p>
           }
-        }
+        </section>
+
+        <section class="github-detail" aria-labelledby="github-title">
+          <div>
+            <h3 id="github-title">Relaciones GitHub</h3>
+            <p>Issues, Pull Requests y commits mencionados explícitamente en la sesión.</p>
+          </div>
+          @if (github.isLoading()) {
+            <mat-progress-bar mode="indeterminate" aria-label="Consultando GitHub" />
+          } @else if (github.error()) {
+            <p class="github-message github-message--error">
+              El detalle está disponible, pero no se pudieron consultar las relaciones GitHub.
+            </p>
+          } @else if (github.value(); as result) {
+            @if (result.count === 0) {
+              <p class="github-message">No hay referencias GitHub explícitas en esta sesión.</p>
+            } @else {
+              <ul class="github-list">
+                @for (reference of result.references; track reference.url) {
+                  <li>
+                    <div>
+                      <span class="github-kind">
+                        {{ githubKindName(reference.kind) }} · {{ reference.identifier }}
+                      </span>
+                      <a [href]="reference.url" target="_blank" rel="noopener noreferrer">
+                        {{ reference.title || reference.owner + '/' + reference.repository }}
+                      </a>
+                    </div>
+                    @if (reference.error) {
+                      <span class="github-reference-error">No disponible</span>
+                    } @else if (reference.state) {
+                      <span class="github-state">{{ githubStateName(reference.state) }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          }
+        </section>
       </section>
     }
 

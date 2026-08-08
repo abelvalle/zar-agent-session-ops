@@ -2,6 +2,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -10,6 +11,7 @@ from zar_agent_session_ops.core import (
     Policy,
     load_sessions,
     policy_candidates,
+    read_codex_session,
     scan_codex,
     sync_sessions,
 )
@@ -42,12 +44,16 @@ class CodexInventoryTest(unittest.TestCase):
             self.assertEqual(["Active work", "Archived work"], [item.title for item in sessions])
             self.assertEqual(["Codex Desktop", "codex_exec"], [item.origin for item in sessions])
             self.assertEqual(["user", "automation"], [item.thread_source for item in sessions])
+            self.assertEqual([1500, 1500], [item.usage.total_tokens for item in sessions if item.usage])
+            self.assertEqual(16.0, sessions[0].usage.rate_limit_used_percent)
+            self.assertEqual(10_080, sessions[0].usage.rate_limit_window_minutes)
 
             database = root / "sessions.db"
             self._old_database(database)
             sync_sessions(database, sessions)
             stored = load_sessions(database)
             self.assertEqual({"active", "archived"}, {item.status for item in stored})
+            self.assertEqual({1500}, {item.usage.total_tokens for item in stored if item.usage})
             candidates = policy_candidates(
                 stored,
                 Policy(1, root / "archive"),
@@ -69,6 +75,16 @@ class CodexInventoryTest(unittest.TestCase):
             reader.assert_not_called()
             self.assertEqual(known, unchanged)
 
+            legacy_known = [replace(known[0], usage=None, usage_scanned=False)]
+            with patch(
+                "zar_agent_session_ops.core.read_codex_session",
+                wraps=read_codex_session,
+            ) as reader:
+                migrated = scan_codex(root, legacy_known)
+            reader.assert_called_once()
+            self.assertTrue(migrated[0].usage_scanned)
+            self.assertEqual(1500, migrated[0].usage.total_tokens)
+
             with path.open("a", encoding="utf-8") as stream:
                 stream.write(
                     "\n"
@@ -81,23 +97,53 @@ class CodexInventoryTest(unittest.TestCase):
                     )
                 )
             changed = scan_codex(root, known)
-            self.assertEqual(2, changed[0].event_count)
+            self.assertEqual(3, changed[0].event_count)
             self.assertEqual("task_complete", changed[0].last_event_type)
 
     @staticmethod
     def _session(path: Path, session_id: str, origin: str, thread_source: str) -> None:
         path.write_text(
-            json.dumps(
-                {
-                    "timestamp": "2026-08-04T10:00:00Z",
-                    "type": "session_meta",
-                    "payload": {
-                        "id": session_id,
-                        "cwd": "D:/repo",
-                        "originator": origin,
-                        "thread_source": thread_source,
-                    },
-                }
+            "\n".join(
+                (
+                    json.dumps(
+                        {
+                            "timestamp": "2026-08-04T10:00:00Z",
+                            "type": "session_meta",
+                            "payload": {
+                                "id": session_id,
+                                "cwd": "D:/repo",
+                                "originator": origin,
+                                "thread_source": thread_source,
+                            },
+                        }
+                    ),
+                    json.dumps(
+                        {
+                            "timestamp": "2026-08-04T10:01:00Z",
+                            "type": "event_msg",
+                            "payload": {
+                                "type": "token_count",
+                                "info": {
+                                    "total_token_usage": {
+                                        "input_tokens": 1200,
+                                        "cached_input_tokens": 900,
+                                        "output_tokens": 300,
+                                        "reasoning_output_tokens": 100,
+                                        "total_tokens": 1500,
+                                    },
+                                    "model_context_window": 258400,
+                                },
+                                "rate_limits": {
+                                    "primary": {
+                                        "used_percent": 16.0,
+                                        "window_minutes": 10080,
+                                        "resets_at": 1786770116,
+                                    }
+                                },
+                            },
+                        }
+                    ),
+                )
             ),
             encoding="utf-8",
         )

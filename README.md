@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.18.0` convierte los
-informes Markdown en contenido consultable dentro del dashboard, conserva la
-descarga opcional y mantiene la vista operativa y el refresco incremental.
+sesiones locales de agentes de programación. La versión `0.19.0` convierte el
+dashboard en una superficie de diagnóstico: renderiza Markdown, localiza y
+resalta la fila exacta, abre una ficha útil y cuantifica el consumo Codex.
 
 ## Funciones disponibles
 
@@ -17,8 +17,11 @@ descarga opcional y mantiene la vista operativa y el refresco incremental.
   esos metadatos existen.
 - Guarda únicamente metadatos normalizados en SQLite.
 - Genera informes generales y semanales en Markdown.
-- Lee inventario, actividad semanal y posibles bloqueos dentro del dashboard y
-  permite descargar el Markdown seleccionado de forma opcional.
+- Renderiza inventario, actividad semanal y posibles bloqueos como HTML legible
+  dentro del dashboard; la descarga Markdown continúa siendo opcional.
+- Extrae tokens de entrada, caché, salida y razonamiento registrados por Codex.
+- Muestra el consumo acumulado por sesión y la última ventana de suscripción
+  observada, con porcentaje disponible y fecha de reinicio.
 - Consolida trabajo, decisiones, pendientes, riesgos y relaciones GitHub de la
   semana mediante Ollama local.
 - Señala sesiones Codex potencialmente bloqueadas mediante eventos terminales.
@@ -26,7 +29,10 @@ descarga opcional y mantiene la vista operativa y el refresco incremental.
 - Expone salud, sesiones y posibles bloqueos mediante una API local.
 - Presenta primero las señales que requieren atención y deja el inventario como
   vista de consulta secundaria.
-- Permite localizar desde cada señal su sesión exacta en el inventario filtrado.
+- Permite localizar desde cada señal su sesión exacta, desplaza el foco hasta su
+  fila y la mantiene resaltada.
+- Abre una ficha operativa con origen, tipo, eventos, tamaño, tokens y relaciones
+  GitHub; el detalle conserva valor aunque no existan referencias GitHub.
 - Resuelve enlaces explícitos a GitHub Issues, Pull Requests y commits.
 - Resume una sesión mediante un modelo Ollama local.
 - Genera un relevo Markdown mínimo para una nueva sesión Codex o ChatGPT.
@@ -103,7 +109,8 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `GET /api/health`: estado y versión.
 - `GET /api/refresh`: estado del último escaneo solicitado.
 - `POST /api/refresh`: inicia un escaneo Codex y Claude Code en segundo plano.
-- `GET /api/sessions`: inventario; admite los filtros `agent` y `status`.
+- `GET /api/sessions`: inventario con telemetría de tokens cuando existe; admite
+  los filtros `agent` y `status`.
 - `GET /api/blocked`: señal conservadora de posibles bloqueos.
 - `GET /api/retention`: vista previa de candidatas según la política local.
 - `GET /api/reports/{report_name}`: descarga `sessions`, `weekly` o `blocked`
@@ -143,11 +150,27 @@ Abre `http://127.0.0.1:4200`. El servidor de desarrollo redirige `/api/**` a
 la API local, por lo que no hace falta habilitar CORS. La interfaz abre con una
 cola de atención para posibles bloqueos y candidatas a archivo, explica el motivo
 de cada señal y permite localizarla en el inventario filtrado. El lector de
-informes muestra por defecto el resumen semanal y permite alternar entre semanal,
-bloqueos e inventario sin abandonar la página; la descarga queda como acción
-secundaria. Después ofrece métricas, filtros, paginación, consulta GitHub bajo
-demanda y los estados de carga, error y ausencia de datos. Se adapta a escritorio
-y móvil.
+informes renderiza títulos, listas y tablas del Markdown dentro de la página y
+permite alternar entre semanal, bloqueos e inventario; la descarga queda como
+acción secundaria. `Localizar` lleva el foco a la fila exacta y la resalta. `Ver
+detalle` abre metadatos, consumo de tokens y relaciones GitHub en una ficha que
+siempre aporta contexto. Se adapta a escritorio y móvil.
+
+## Métricas de tokens y suscripción
+
+Codex incluye eventos locales `token_count` con el acumulado de entrada, entrada
+en caché, salida, razonamiento, total procesado y ventana de contexto. El escaneo
+0.19 conserva solo esos contadores y sus tiempos en SQLite; no añade contenido de
+la conversación. La primera actualización tras migrar vuelve a leer una vez los
+JSONL existentes y las siguientes recuperan el escaneo incremental.
+
+La interfaz deduplica por identificador de sesión para el total histórico y toma
+el evento más reciente para mostrar el porcentaje usado, el disponible y el
+reinicio de la ventana Codex. Ese porcentaje es una instantánea local, no una
+consulta en tiempo real a la cuenta. ChatGPT Work y Codex comparten uso, créditos
+y límites, pero OpenAI no publica una cuota fija de suscripción convertible a un
+número total de tokens. Claude Code, ChatGPT importado y sesiones antiguas pueden
+mostrar `No disponible` cuando su fuente no contiene estos eventos.
 
 ## Relaciones con GitHub
 

@@ -1,6 +1,6 @@
 {
   "name": "zar-agent-session-ops-dashboard",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --host 127.0.0.1",
@@ -19,6 +19,7 @@
     "@angular/forms": "^22.1.0",
     "@angular/material": "^22.1.0",
     "@angular/platform-browser": "^22.1.0",
+    "marked": "^18.0.9",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

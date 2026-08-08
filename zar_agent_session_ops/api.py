@@ -50,6 +50,20 @@ def _session_data(session: Session) -> dict[str, object]:
         "origin": session.origin,
         "thread_source": session.thread_source,
         "last_event_type": session.last_event_type,
+        "usage": {
+            "observed_at": session.usage.observed_at,
+            "input_tokens": session.usage.input_tokens,
+            "cached_input_tokens": session.usage.cached_input_tokens,
+            "output_tokens": session.usage.output_tokens,
+            "reasoning_output_tokens": session.usage.reasoning_output_tokens,
+            "total_tokens": session.usage.total_tokens,
+            "model_context_window": session.usage.model_context_window,
+            "rate_limit_used_percent": session.usage.rate_limit_used_percent,
+            "rate_limit_window_minutes": session.usage.rate_limit_window_minutes,
+            "rate_limit_resets_at": session.usage.rate_limit_resets_at,
+        }
+        if session.usage
+        else None,
     }
 
 
@@ -194,7 +208,7 @@ def create_app(
             content=content,
             media_type="text/markdown",
             headers={
-                "Content-Disposition": f'attachment; filename="{report_name}.md"'
+                "Content-Disposition": f'inline; filename="{report_name}.md"'
             },
         )
 
