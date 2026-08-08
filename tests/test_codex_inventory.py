@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from zar_agent_session_ops.core import (
     Policy,
@@ -53,6 +54,35 @@ class CodexInventoryTest(unittest.TestCase):
                 datetime(2026, 8, 6, tzinfo=timezone.utc),
             )
             self.assertEqual(["active-id"], [item.session_id for item in candidates])
+
+    def test_reuses_unchanged_codex_sessions_and_reads_changed_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sessions_dir = root / "sessions"
+            sessions_dir.mkdir()
+            path = sessions_dir / "session.jsonl"
+            self._session(path, "session-id", "Codex Desktop", "user")
+
+            known = scan_codex(root)
+            with patch("zar_agent_session_ops.core.read_codex_session") as reader:
+                unchanged = scan_codex(root, known)
+            reader.assert_not_called()
+            self.assertEqual(known, unchanged)
+
+            with path.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    "\n"
+                    + json.dumps(
+                        {
+                            "timestamp": "2026-08-04T10:05:00Z",
+                            "type": "event_msg",
+                            "payload": {"type": "task_complete"},
+                        }
+                    )
+                )
+            changed = scan_codex(root, known)
+            self.assertEqual(2, changed[0].event_count)
+            self.assertEqual("task_complete", changed[0].last_event_type)
 
     @staticmethod
     def _session(path: Path, session_id: str, origin: str, thread_source: str) -> None:

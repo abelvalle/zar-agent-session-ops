@@ -3,8 +3,9 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.16.0` provides a local Codex and ChatGPT inventory, adds the Claude Code
-session registry, and previews retention policy from the local dashboard.
+`0.17.0` turns the dashboard into an operational view: it prioritizes blocked
+and retention signals, locates each signal, and refreshes large inventories
+incrementally.
 
 ## Available features
 
@@ -22,7 +23,9 @@ session registry, and previews retention policy from the local dashboard.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
 - Runs scanning, policy evaluation, and reports in one schedulable cycle.
 - Exposes health, sessions, and blocked signals through a local API.
-- Presents metrics, filters, pagination, and blocked signals in a responsive dashboard.
+- Shows attention signals first and keeps the full inventory as a secondary
+  lookup surface.
+- Locates the exact session behind each signal in the filtered inventory.
 - Resolves explicit GitHub Issue, Pull Request, and commit links.
 - Summarizes a session with a local Ollama model.
 - Generates a minimal Markdown handoff for a new Codex or ChatGPT session.
@@ -32,8 +35,8 @@ session registry, and previews retention policy from the local dashboard.
 - Imports metadata and on-demand transcripts from an official ChatGPT ZIP or
   JSON without copying conversations into the application database.
 - Packages the API and dashboard as a reproducible local Docker Compose stack.
-- Refreshes Codex and the Claude Code registry through a non-blocking scan
-  started from the API or dashboard.
+- Refreshes Codex and the Claude Code registry through an incremental,
+  non-blocking scan and reports duration, changed records, and reused metadata.
 
 ## Quick start
 
@@ -83,8 +86,10 @@ docker compose down
 startup to choose another loopback port. `GITHUB_TOKEN` is optional; Compose
 passes it into the API environment and the application does not store it.
 
-The `Refresh` button starts a new background scan. The API remains responsive
-during the work and prevents two scans from running at the same time.
+The `Refresh` button starts a new background scan. Codex metadata is reused for
+JSONL files whose size and status have not changed; new, changed, or moved files
+are read again. The UI then reports duration, changes, and reused records. The
+API remains responsive and prevents two scans from running at the same time.
 
 ## Local API
 
@@ -128,11 +133,12 @@ npm start
 ```
 
 Open `http://127.0.0.1:4200`. The development server proxies `/api/**` to the
-local API, so CORS does not need to be enabled. The interface provides status
-metrics, filters, pagination, retention preview, potentially blocked-session
-review, on-demand GitHub lookup, real inventory refresh, plus loading, error,
-and empty states. It also downloads all three Markdown reports without opening
-or copying transcripts. It adapts to desktop and mobile.
+local API, so CORS does not need to be enabled. The interface opens with an
+attention queue for potentially blocked sessions and archive candidates,
+explains each signal, and locates it in the filtered inventory. It then provides
+status metrics, filters, pagination, on-demand GitHub lookup, plus loading,
+error, and empty states. It also downloads all three Markdown reports without
+opening or copying transcripts. It adapts to desktop and mobile.
 
 ## GitHub relationships
 
@@ -353,6 +359,8 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 
 ## Next milestones
 
+- Confirmed archiving from the attention queue, with explicit preview and
+  recovery.
 - Claude Code history and transcripts, plus an OpenCode adapter, once real
   fixtures for those sources are available.
 - Server-side pagination and authentication when usage moves beyond loopback.

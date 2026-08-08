@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.17.0 - Operational dashboard / Dashboard operativo
+
+- ES: sustituye la pantalla centrada en el inventario por una cola de atención
+  que muestra bloqueos y retención antes de la tabla y permite localizar cada
+  sesión señalada.
+- EN: replaces the inventory-first screen with an attention queue that shows
+  blocked and retention signals before the table and locates each flagged
+  session.
+- ES: reutiliza metadatos de JSONL Codex sin cambios y muestra duración,
+  registros cambiados y reutilizados tras cada actualización.
+- EN: reuses metadata for unchanged Codex JSONL files and reports duration,
+  changed records, and reused records after each refresh.
+- Verificación / Verification: 17 pruebas Python, 4 pruebas Angular, build de
+  producción, auditoría npm y stack Docker 0.17 validados.
+- Detalles / Details: [docs/milestones/0.17.0.md](docs/milestones/0.17.0.md).
+
 ## 0.16.0 - Retention preview / Vista previa de retención
 
 - ES: añade `GET /api/retention` con el umbral configurado y las sesiones

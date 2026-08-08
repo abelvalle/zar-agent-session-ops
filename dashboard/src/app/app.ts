@@ -47,6 +47,9 @@ interface HealthResponse {
 interface RefreshResponse {
   status: 'idle' | 'running' | 'completed' | 'failed';
   count: number | null;
+  updated: number | null;
+  reused: number | null;
+  duration_seconds: number | null;
   started_at: string | null;
   finished_at: string | null;
   error: string | null;
@@ -157,6 +160,9 @@ export class App {
     this.refreshState.set({
       status: 'running',
       count: null,
+      updated: null,
+      reused: null,
+      duration_seconds: null,
       started_at: null,
       finished_at: null,
       error: null,
@@ -209,6 +215,9 @@ export class App {
     this.refreshState.update((state) => ({
       status: 'failed',
       count: null,
+      updated: null,
+      reused: null,
+      duration_seconds: null,
       started_at: state?.started_at ?? null,
       finished_at: null,
       error: 'No se pudo actualizar el inventario.',
@@ -228,6 +237,18 @@ export class App {
   protected setPage(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
     this.pageSize.set(event.pageSize);
+  }
+
+  protected locateSession(session: AgentSession): void {
+    this.agentFilter.set(session.agent);
+    this.statusFilter.set(session.status);
+    const index = this.filteredSessions().findIndex(
+      (item) =>
+        item.id === session.id &&
+        item.last_activity_at === session.last_activity_at &&
+        item.size_bytes === session.size_bytes,
+    );
+    this.pageIndex.set(Math.max(0, Math.floor(index / this.pageSize())));
   }
 
   protected loadGitHub(session: AgentSession): void {
@@ -277,5 +298,12 @@ export class App {
       return `${(bytes / 1024).toFixed(1)} KiB`;
     }
     return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
+  }
+
+  protected formatDuration(seconds: number | null): string {
+    if (seconds === null) {
+      return '—';
+    }
+    return seconds < 1 ? `${Math.round(seconds * 1000)} ms` : `${seconds.toFixed(1)} s`;
   }
 }

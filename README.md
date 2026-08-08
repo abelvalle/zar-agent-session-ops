@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.16.0` ofrece un
-inventario local de Codex y ChatGPT, incorpora el registro de sesiones de Claude
-Code y permite revisar la política de retención desde el dashboard local.
+sesiones locales de agentes de programación. La versión `0.17.0` convierte el
+dashboard en una vista operativa: prioriza bloqueos y retención, permite localizar
+cada señal y actualiza inventarios grandes de forma incremental.
 
 ## Funciones disponibles
 
@@ -23,7 +23,9 @@ Code y permite revisar la política de retención desde el dashboard local.
 - Señala sesiones Codex potencialmente bloqueadas mediante eventos terminales.
 - Ejecuta escaneo, política e informes en un único ciclo programable.
 - Expone salud, sesiones y posibles bloqueos mediante una API local.
-- Presenta métricas, filtros, paginación y bloqueos en un dashboard adaptable.
+- Presenta primero las señales que requieren atención y deja el inventario como
+  vista de consulta secundaria.
+- Permite localizar desde cada señal su sesión exacta en el inventario filtrado.
 - Resuelve enlaces explícitos a GitHub Issues, Pull Requests y commits.
 - Resume una sesión mediante un modelo Ollama local.
 - Genera un relevo Markdown mínimo para una nueva sesión Codex o ChatGPT.
@@ -34,8 +36,8 @@ Code y permite revisar la política de retención desde el dashboard local.
   de ChatGPT sin copiar las conversaciones a la base propia.
 - Empaqueta la API y el dashboard en un stack local reproducible con Docker
   Compose.
-- Actualiza Codex y el registro de Claude Code mediante un escaneo no bloqueante
-  iniciado desde la API o el dashboard.
+- Actualiza Codex y el registro de Claude Code mediante un escaneo incremental
+  no bloqueante e informa duración, registros cambiados y metadatos reutilizados.
 
 ## Inicio rápido
 
@@ -87,8 +89,11 @@ define `ZAR_DASHBOARD_PORT` antes de levantar el stack. `GITHUB_TOKEN` también
 es opcional; Compose lo transmite al entorno de la API y la aplicación no lo
 guarda.
 
-El botón `Actualizar` inicia un nuevo escaneo en segundo plano. La API continúa
-respondiendo durante el trabajo y evita ejecutar dos escaneos simultáneos.
+El botón `Actualizar` inicia un nuevo escaneo en segundo plano. Codex reutiliza
+los metadatos de JSONL cuyo tamaño y estado no han cambiado y vuelve a leer los
+archivos nuevos, modificados o movidos. Al terminar, la web muestra duración,
+cambios y reutilizaciones. La API continúa respondiendo durante el trabajo y
+evita ejecutar dos escaneos simultáneos.
 
 ## API local
 
@@ -134,11 +139,12 @@ npm start
 ```
 
 Abre `http://127.0.0.1:4200`. El servidor de desarrollo redirige `/api/**` a
-la API local, por lo que no hace falta habilitar CORS. La interfaz incluye
-métricas de estado, filtros, paginación, vista previa de retención, revisión de
-posibles bloqueos, consulta GitHub bajo demanda, refresco real del inventario y
-estados de carga, error y ausencia de datos. También descarga los tres informes
-Markdown sin abrir ni copiar transcripciones. Se adapta a escritorio y móvil.
+la API local, por lo que no hace falta habilitar CORS. La interfaz abre con una
+cola de atención para posibles bloqueos y candidatas a archivo, explica el motivo
+de cada señal y permite localizarla en el inventario filtrado. Después ofrece
+métricas, filtros, paginación, consulta GitHub bajo demanda y los estados de
+carga, error y ausencia de datos. También descarga los tres informes Markdown
+sin abrir ni copiar transcripciones. Se adapta a escritorio y móvil.
 
 ## Relaciones con GitHub
 
@@ -364,6 +370,8 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 
 ## Próximos hitos
 
+- Archivado confirmado desde la cola de atención, manteniendo vista previa y
+  recuperación explícitas.
 - Historial y transcripciones Claude Code, y adaptador OpenCode, cuando existan
   fixtures reales de esas fuentes.
 - Paginación de servidor y autenticación cuando el uso deje de ser local.

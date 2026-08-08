@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
+from time import perf_counter
 from typing import Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
@@ -63,6 +64,9 @@ def create_app(
     refresh_state: dict[str, object] = {
         "status": "idle",
         "count": None,
+        "updated": None,
+        "reused": None,
+        "duration_seconds": None,
         "started_at": None,
         "finished_at": None,
         "error": None,
@@ -70,8 +74,10 @@ def create_app(
 
     # ponytail: process-local state is enough for the single-worker local API.
     def run_refresh() -> None:
+        started = perf_counter()
         try:
-            items = scan_codex(source)
+            known = load_sessions(database)
+            items = scan_codex(source, known)
             sync_sessions(database, items)
             claude_items = scan_claude(claude_source)
             sync_sessions(database, claude_items, agent="claude")
@@ -80,14 +86,33 @@ def create_app(
             with refresh_lock:
                 refresh_state.update(
                     status="failed",
+                    duration_seconds=round(perf_counter() - started, 2),
                     finished_at=datetime.now(timezone.utc).isoformat(),
                     error="refresh failed; check API logs",
                 )
         else:
+            refreshed = items + claude_items
+            known_by_record = {
+                (item.agent, item.session_id, str(item.path), item.source_entry): item
+                for item in known
+                if item.agent in {"codex", "claude"}
+            }
+            refreshed_by_record = {
+                (item.agent, item.session_id, str(item.path), item.source_entry): item
+                for item in refreshed
+            }
+            reused = sum(
+                known_by_record.get(record) == item
+                for record, item in refreshed_by_record.items()
+            )
+            removed = len(known_by_record.keys() - refreshed_by_record.keys())
             with refresh_lock:
                 refresh_state.update(
                     status="completed",
-                    count=len(items) + len(claude_items),
+                    count=len(refreshed),
+                    updated=len(refreshed) - reused + removed,
+                    reused=reused,
+                    duration_seconds=round(perf_counter() - started, 2),
                     finished_at=datetime.now(timezone.utc).isoformat(),
                 )
 
@@ -108,6 +133,9 @@ def create_app(
                 refresh_state.update(
                     status="running",
                     count=None,
+                    updated=None,
+                    reused=None,
+                    duration_seconds=None,
                     started_at=datetime.now(timezone.utc).isoformat(),
                     finished_at=None,
                     error=None,

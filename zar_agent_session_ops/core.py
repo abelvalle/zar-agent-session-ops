@@ -8,7 +8,7 @@ import tomllib
 import zipfile
 from collections import deque
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -148,7 +148,9 @@ def read_codex_session(
     )
 
 
-def scan_codex(root: Path) -> list[Session]:
+def scan_codex(
+    root: Path, known_sessions: list[Session] | None = None
+) -> list[Session]:
     if not root.is_dir():
         raise FileNotFoundError(f"Codex session directory not found: {root}")
     if (root / "sessions").is_dir():
@@ -157,12 +159,29 @@ def scan_codex(root: Path) -> list[Session]:
     else:
         titles = {}
         locations = ((root, "active"),)
-    return [
-        read_codex_session(path, status, titles)
-        for location, status in locations
-        if location.is_dir()
-        for path in sorted(location.rglob("*.jsonl"))
-    ]
+    known_by_path = {
+        str(session.path.resolve()): session
+        for session in known_sessions or []
+        if session.agent == "codex"
+    }
+    sessions: list[Session] = []
+    for location, status in locations:
+        if not location.is_dir():
+            continue
+        for path in sorted(location.rglob("*.jsonl")):
+            resolved = path.resolve()
+            known = known_by_path.get(str(resolved))
+            if (
+                known is not None
+                and known.status == status
+                and known.size_bytes == path.stat().st_size
+            ):
+                sessions.append(
+                    replace(known, title=titles.get(known.session_id, known.title))
+                )
+            else:
+                sessions.append(read_codex_session(path, status, titles))
+    return sessions
 
 
 def scan_claude(root: Path) -> list[Session]:

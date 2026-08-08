@@ -24,9 +24,10 @@
   <header class="page-header">
     <div>
       <p class="page-kicker">Control local</p>
-      <h1>Gobierno de sesiones</h1>
+      <h1>Centro operativo de sesiones</h1>
       <p class="page-summary">
-        Revisa actividad, archivo y señales de bloqueo sin abrir las transcripciones.
+        Atiende bloqueos y retención primero; consulta el inventario completo cuando lo
+        necesites.
       </p>
     </div>
     <div class="page-actions">
@@ -41,11 +42,11 @@
         </button>
         @if (refreshState(); as refresh) {
           @if (refresh.status === 'running') {
-            <span role="status">Escaneando sesiones en segundo plano</span>
+            <span role="status">Revisando archivos nuevos o modificados…</span>
           } @else if (refresh.status === 'completed') {
             <span role="status">
-              Inventario actualizado: {{ refresh.count }}
-              {{ refresh.count === 1 ? 'sesión' : 'sesiones' }}
+              Actualizado en {{ formatDuration(refresh.duration_seconds) }}:
+              {{ refresh.updated ?? 0 }} con cambios y {{ refresh.reused ?? 0 }} sin cambios.
             </span>
           } @else if (refresh.status === 'failed') {
             <span class="refresh-error" role="alert">{{ refresh.error }}</span>
@@ -78,15 +79,104 @@
         <strong>{{ archivedCount() }}</strong>
       </article>
       <article class="metric-alert">
-        <span>Posible bloqueo</span>
+        <span>Requieren revisión</span>
         <strong>{{ blocked.value()?.count ?? 0 }}</strong>
       </article>
+    </section>
+
+    <section class="attention" aria-labelledby="attention-title">
+      <header class="attention-heading">
+        <div>
+          <h2 id="attention-title">Qué requiere atención</h2>
+          <p>Señales concretas para decidir qué revisar o archivar.</p>
+        </div>
+        <strong>
+          {{ (blocked.value()?.count ?? 0) + (retention.value()?.count ?? 0) }}
+          revisiones
+        </strong>
+      </header>
+
+      <div class="attention-columns">
+        <article class="attention-panel" aria-labelledby="blocked-title">
+          <div class="attention-panel__heading">
+            <div>
+              <h3 id="blocked-title">Posibles bloqueos</h3>
+              <p>
+                Inicio detectado sin cierre durante
+                {{ blocked.value()?.threshold_hours ?? 24 }} horas o más.
+              </p>
+            </div>
+            <strong>{{ blocked.value()?.count ?? 0 }}</strong>
+          </div>
+          @if ((blocked.value()?.count ?? 0) === 0) {
+            <p class="attention-clear">Sin sesiones pendientes de revisar.</p>
+          } @else {
+            <ul>
+              @for (
+                session of blocked.value()?.sessions ?? [];
+                track session.id + session.last_activity_at + session.size_bytes
+              ) {
+                <li>
+                  <div>
+                    <strong>{{ session.title || 'Sin título' }}</strong>
+                    <span>
+                      Última actividad:
+                      {{ session.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}
+                    </span>
+                    <span>{{ session.repository || 'Repositorio no detectado' }}</span>
+                  </div>
+                  <a mat-button href="#inventory-title" (click)="locateSession(session)">
+                    Localizar
+                  </a>
+                </li>
+              }
+            </ul>
+          }
+        </article>
+
+        <article class="attention-panel" aria-labelledby="retention-title">
+          <div class="attention-panel__heading">
+            <div>
+              <h3 id="retention-title">Candidatas a archivo</h3>
+              <p>
+                Activas sin actividad durante
+                {{ retention.value()?.archive_after_days ?? 30 }} días o más.
+              </p>
+            </div>
+            <strong>{{ retention.value()?.count ?? 0 }}</strong>
+          </div>
+          @if ((retention.value()?.count ?? 0) === 0) {
+            <p class="attention-clear">Ninguna sesión cumple la política.</p>
+          } @else {
+            <ul>
+              @for (
+                session of retention.value()?.sessions ?? [];
+                track session.id + session.last_activity_at + session.size_bytes
+              ) {
+                <li>
+                  <div>
+                    <strong>{{ session.title || 'Sin título' }}</strong>
+                    <span>
+                      Última actividad:
+                      {{ session.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}
+                    </span>
+                    <span>{{ session.repository || 'Repositorio no detectado' }}</span>
+                  </div>
+                  <a mat-button href="#inventory-title" (click)="locateSession(session)">
+                    Localizar
+                  </a>
+                </li>
+              }
+            </ul>
+          }
+        </article>
+      </div>
     </section>
 
     <section class="inventory" aria-labelledby="inventory-title">
       <div class="section-heading">
         <div>
-          <h2 id="inventory-title">Inventario</h2>
+          <h2 id="inventory-title">Todas las sesiones</h2>
           <p>{{ filteredSessions().length }} sesiones visibles</p>
         </div>
         <div class="filters" aria-label="Filtros del inventario">
@@ -242,50 +332,5 @@
       </section>
     }
 
-    <section class="blocked-panel" aria-labelledby="retention-title">
-      <div>
-        <h2 id="retention-title">Vista previa de retención</h2>
-        <p>
-          Umbral: {{ retention.value()?.archive_after_days ?? 30 }} días sin actividad.
-          {{ retention.value()?.count ?? 0 }}
-          {{ (retention.value()?.count ?? 0) === 1 ? 'candidata' : 'candidatas' }} a
-          archivo.
-        </p>
-      </div>
-      @if ((retention.value()?.count ?? 0) === 0) {
-        <p class="blocked-clear">Ninguna sesión activa cumple la política.</p>
-      } @else {
-        <ul>
-          @for (session of retention.value()?.sessions ?? []; track session.id) {
-            <li>
-              <strong>{{ session.title || 'Sin título' }}</strong>
-              <span>{{ session.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}</span>
-            </li>
-          }
-        </ul>
-      }
-    </section>
-
-    <section class="blocked-panel" aria-labelledby="blocked-title">
-      <div>
-        <h2 id="blocked-title">Revisión de bloqueos</h2>
-        <p>
-          Umbral: {{ blocked.value()?.threshold_hours ?? 24 }} horas sin actividad tras
-          <code>task_started</code>.
-        </p>
-      </div>
-      @if ((blocked.value()?.count ?? 0) === 0) {
-        <p class="blocked-clear">No hay sesiones que requieran revisión.</p>
-      } @else {
-        <ul>
-          @for (session of blocked.value()?.sessions ?? []; track session.id) {
-            <li>
-              <strong>{{ session.title || 'Sin título' }}</strong>
-              <span>{{ session.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}</span>
-            </li>
-          }
-        </ul>
-      }
-    </section>
   }
 </main>

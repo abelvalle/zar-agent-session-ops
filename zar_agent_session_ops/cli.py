@@ -125,7 +125,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "scan":
-            sessions = scan_codex(args.source)
+            known = load_sessions(args.db) if args.db.is_file() else []
+            sessions = scan_codex(args.source, known)
             sync_sessions(args.db, sessions)
             claude_sessions = scan_claude(args.claude_source)
             sync_sessions(args.db, claude_sessions, agent="claude")
@@ -247,7 +248,8 @@ def main(argv: list[str] | None = None) -> int:
             sync_sessions(args.db, sessions, agent="chatgpt")
             print(f"Imported {len(sessions)} ChatGPT conversations into {args.db}")
         elif args.command == "maintain":
-            sync_sessions(args.db, scan_codex(args.source))
+            known = load_sessions(args.db) if args.db.is_file() else []
+            sync_sessions(args.db, scan_codex(args.source, known))
             sync_sessions(args.db, scan_claude(args.claude_source), agent="claude")
             policy = load_policy(args.config)
             sessions = load_sessions(args.db)

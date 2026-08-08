@@ -63,7 +63,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.16.0"},
+                    {"status": "ok", "version": "0.17.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -187,6 +187,9 @@ class ApiTest(unittest.TestCase):
                 completed = client.get("/api/refresh").json()
                 self.assertEqual("completed", completed["status"])
                 self.assertEqual(2, completed["count"])
+                self.assertEqual(2, completed["updated"])
+                self.assertEqual(0, completed["reused"])
+                self.assertGreaterEqual(completed["duration_seconds"], 0)
                 inventory = client.get("/api/sessions").json()
                 self.assertEqual(2, inventory["count"])
                 sessions_by_id = {
@@ -197,6 +200,12 @@ class ApiTest(unittest.TestCase):
                     "registered",
                     sessions_by_id["claude-refreshed-id"]["status"],
                 )
+
+                client.post("/api/refresh")
+                unchanged = client.get("/api/refresh").json()
+                self.assertEqual("completed", unchanged["status"])
+                self.assertEqual(0, unchanged["updated"])
+                self.assertEqual(2, unchanged["reused"])
 
                 source.rename(root / "missing-codex")
                 with patch("zar_agent_session_ops.api.LOGGER.exception"):
