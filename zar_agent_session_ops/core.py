@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -671,6 +672,26 @@ def find_session(database: Path, session_id: str) -> Session:
     return matches[0]
 
 
+def session_key(session: Session) -> str:
+    identity = "\0".join(
+        (session.agent, session.session_id, str(session.path), session.source_entry)
+    )
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def _valid_session_key(record_key: str) -> bool:
+    return len(record_key) == 64 and all(
+        character in "0123456789abcdef" for character in record_key
+    )
+
+
+def find_session_by_key(database: Path, record_key: str) -> Session:
+    matches = [session for session in load_sessions(database) if session_key(session) == record_key]
+    if not matches:
+        raise LookupError(f"Session record not found: {record_key}")
+    return matches[0]
+
+
 def age_days(session: Session, now: datetime | None = None) -> int:
     current = now or datetime.now(timezone.utc)
     return max(0, int((current - session.last_activity_at).total_seconds() // 86_400))
@@ -1040,3 +1061,97 @@ def archive_session(
     return archive_sessions(
         database, [find_session(database, session_id)], archive_dir, apply
     )[0]
+
+
+def archive_session_reversible(
+    database: Path, session: Session, archive_dir: Path, apply: bool = False
+) -> tuple[Path, Path, Path]:
+    source, destination = archive_sessions(database, [session], archive_dir)[0]
+    receipt = archive_dir.resolve() / f".{session_key(session)}.restore.json"
+    if receipt.exists():
+        raise FileExistsError(f"Recovery receipt already exists: {receipt}")
+    if not apply:
+        return source, destination, receipt
+
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    receipt.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "record_key": session_key(session),
+                "session_id": session.session_id,
+                "title": session.title,
+                "agent": session.agent,
+                "size_bytes": session.size_bytes,
+                "archived_at": datetime.now(timezone.utc).isoformat(),
+                "source": str(source.resolve()),
+                "destination": str(destination.resolve()),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    try:
+        archive_sessions(database, [session], archive_dir, apply=True)
+    except Exception:
+        receipt.unlink(missing_ok=True)
+        raise
+    return source, destination, receipt
+
+
+def archive_recoveries(archive_dir: Path) -> list[dict[str, object]]:
+    resolved_archive = archive_dir.resolve()
+    if not resolved_archive.is_dir():
+        return []
+    recoveries: list[dict[str, object]] = []
+    for receipt in sorted(resolved_archive.glob(".*.restore.json")):
+        try:
+            data = json.loads(receipt.read_text(encoding="utf-8"))
+            destination = Path(str(data.get("destination", ""))).resolve()
+        except (OSError, ValueError):
+            continue
+        record_key = str(data.get("record_key", ""))
+        if (
+            not _valid_session_key(record_key)
+            or destination.parent != resolved_archive
+            or not destination.is_file()
+        ):
+            continue
+        recoveries.append(
+            {
+                "record_key": record_key,
+                "session_id": str(data.get("session_id", "")),
+                "title": str(data.get("title", "")),
+                "agent": str(data.get("agent", "")),
+                "size_bytes": _non_negative_int(data.get("size_bytes")),
+                "archived_at": str(data.get("archived_at", "")),
+                "destination_name": destination.name,
+            }
+        )
+    return recoveries
+
+
+def restore_archived_session(record_key: str, archive_dir: Path) -> tuple[str, Path, Path]:
+    if not _valid_session_key(record_key):
+        raise ValueError("Invalid session record key")
+    resolved_archive = archive_dir.resolve()
+    receipt = resolved_archive / f".{record_key}.restore.json"
+    if not receipt.is_file():
+        raise LookupError(f"Recovery receipt not found: {record_key}")
+    data = json.loads(receipt.read_text(encoding="utf-8"))
+    if data.get("record_key") != record_key:
+        raise ValueError("Recovery receipt does not match the requested session")
+
+    source = Path(str(data.get("source", ""))).resolve()
+    destination = Path(str(data.get("destination", ""))).resolve()
+    if destination.parent != resolved_archive:
+        raise ValueError("Recovery receipt points outside the configured archive")
+    if not destination.is_file():
+        raise FileNotFoundError(f"Archived session file not found: {destination}")
+    if source.exists():
+        raise FileExistsError(f"Original session path already exists: {source}")
+
+    source.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(destination), source)
+    receipt.unlink()
+    return str(data.get("session_id", "")), source, destination

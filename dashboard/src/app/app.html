@@ -220,12 +220,50 @@
                     </span>
                     <span>{{ session.repository || 'Repositorio no detectado' }}</span>
                   </div>
-                  <a mat-button href="#inventory-title" (click)="locateSession(session)">
-                    Localizar
-                  </a>
+                  <button mat-button type="button" (click)="reviewRetention(session)">
+                    Revisar y archivar
+                  </button>
                 </li>
               }
             </ul>
+          }
+        </article>
+
+        <article class="attention-panel" aria-labelledby="recovery-title">
+          <div class="attention-panel__heading">
+            <div>
+              <h3 id="recovery-title">Archivadas recuperables</h3>
+              <p>Recibos locales disponibles incluso después de recargar la web.</p>
+            </div>
+            <strong>{{ recoveries.value()?.count ?? 0 }}</strong>
+          </div>
+          @if ((recoveries.value()?.count ?? 0) === 0) {
+            <p class="attention-clear">No hay archivados pendientes de recuperación.</p>
+          } @else {
+            <ul>
+              @for (recovery of recoveries.value()?.archives ?? []; track recovery.record_key) {
+                <li>
+                  <div>
+                    <strong>{{ recovery.title || recovery.session_id }}</strong>
+                    <span>
+                      Archivada: {{ recovery.archived_at | date: 'yyyy-MM-dd HH:mm' }}
+                    </span>
+                    <span>{{ agentName(recovery.agent) }} · {{ formatBytes(recovery.size_bytes) }}</span>
+                  </div>
+                  <button
+                    mat-button
+                    type="button"
+                    [disabled]="!!restoringKey()"
+                    (click)="restoreRecovery(recovery)"
+                  >
+                    {{ restoringKey() === recovery.record_key ? 'Restaurando…' : 'Restaurar' }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+          @if (recoveryError()) {
+            <p class="lifecycle-error" role="alert">{{ recoveryError() }}</p>
           }
         </article>
       </div>
@@ -454,6 +492,86 @@
             <dd>{{ selected.last_event_type || 'No disponible' }}</dd>
           </div>
         </dl>
+
+        @if (isRetentionCandidate(selected) || archiveStatus() !== 'idle' || archiveError()) {
+          <section class="lifecycle-detail" aria-labelledby="lifecycle-title">
+            <div>
+              <h3 id="lifecycle-title">Ciclo de vida</h3>
+              <p>Archiva esta sesión con una revisión previa y conserva una recuperación local.</p>
+            </div>
+
+            @if (archiveStatus() === 'archived' || archiveStatus() === 'restoring') {
+              <div class="lifecycle-result" role="status">
+                <strong>Sesión archivada</strong>
+                <p>
+                  El archivo {{ archiveResult()?.destination_name }} está fuera del inventario
+                  activo. El recibo de recuperación permanece junto a él.
+                </p>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [disabled]="archiveStatus() === 'restoring'"
+                  (click)="restoreArchive()"
+                >
+                  {{ archiveStatus() === 'restoring' ? 'Restaurando…' : 'Deshacer archivado' }}
+                </button>
+              </div>
+            } @else if (archivePreview(); as preview) {
+              <div class="archive-preview">
+                <dl>
+                  <div><dt>Archivo</dt><dd>{{ preview.source_name }}</dd></div>
+                  <div><dt>Tamaño</dt><dd>{{ formatBytes(preview.size_bytes) }}</dd></div>
+                  <div>
+                    <dt>Política cumplida</dt>
+                    <dd>{{ preview.archive_after_days }} días sin actividad</dd>
+                  </div>
+                  <div><dt>Destino</dt><dd>{{ preview.destination_name }}</dd></div>
+                </dl>
+                <p>
+                  Confirmar moverá el archivo y lo retirará del inventario activo. Podrás
+                  restaurarlo desde esta misma ficha mientras el recibo local exista.
+                </p>
+                <div class="lifecycle-actions">
+                  <button
+                    mat-flat-button
+                    type="button"
+                    [disabled]="archiveStatus() === 'archiving'"
+                    (click)="confirmArchive()"
+                  >
+                    {{ archiveStatus() === 'archiving' ? 'Archivando…' : 'Confirmar archivado' }}
+                  </button>
+                  <button
+                    mat-button
+                    type="button"
+                    [disabled]="archiveStatus() === 'archiving'"
+                    (click)="cancelArchive()"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="lifecycle-intro">
+                <p>
+                  La previsualización no modifica archivos. Verás el nombre, tamaño y destino
+                  antes de confirmar.
+                </p>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [disabled]="archiveStatus() === 'loading'"
+                  (click)="prepareArchive(selected)"
+                >
+                  {{ archiveStatus() === 'loading' ? 'Preparando…' : 'Preparar archivado' }}
+                </button>
+              </div>
+            }
+
+            @if (archiveError()) {
+              <p class="lifecycle-error" role="alert">{{ archiveError() }}</p>
+            }
+          </section>
+        }
 
         <section class="token-detail" aria-labelledby="token-detail-title">
           <div>

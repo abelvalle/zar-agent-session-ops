@@ -3,9 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.19.0` turns the dashboard into a diagnostic surface: it renders Markdown,
-locates and highlights the exact row, opens a useful session record, and
-quantifies Codex usage.
+`0.20.0` completes the first dashboard lifecycle action: it previews, confirms,
+archives, and restores eligible Codex sessions without exposing source paths.
 
 ## Available features
 
@@ -38,6 +37,9 @@ quantifies Codex usage.
 - Generates a minimal Markdown handoff for a new Codex or ChatGPT session.
 - Archives individual sessions or applies a configurable retention policy.
 - Previews sessions that match retention policy without moving files.
+- Reviews and confirms an archive operation from the operational record.
+- Keeps local recovery receipts and shows recoverable archives in the attention
+  queue, including after the page is reloaded.
 - Simulates every archive operation unless `--apply` is supplied.
 - Imports metadata and on-demand transcripts from an official ChatGPT ZIP or
   JSON without copying conversations into the application database.
@@ -77,9 +79,10 @@ $env:CLAUDE_HOME = "$HOME\.claude" # optional
 docker compose up --build -d
 ```
 
-Open `http://127.0.0.1:4200`. On every start, the API scans the read-only
-`/codex` and `/claude` mounts before becoming healthy. When `CLAUDE_HOME` is not
-set, Compose mounts an empty source. Large inventories on Docker Desktop can
+Open `http://127.0.0.1:4200`. On every start, the API scans `/codex` and
+`/claude` before becoming healthy. `/codex` is writable for confirmed archive
+operations; `/claude` remains read-only. When `CLAUDE_HOME` is not set, Compose
+mounts an empty source. Large inventories on Docker Desktop can
 take several minutes. The dashboard is the only published service and proxies
 `/api/**` to the API through the Compose network. SQLite and configuration live
 in the persistent `zar-agent-session-ops_session-data` volume.
@@ -109,6 +112,10 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
   `agent` and `status` filters.
 - `GET /api/blocked`: conservative potentially blocked signal.
 - `GET /api/retention`: candidate preview based on local policy.
+- `GET /api/archives`: archives with an available recovery receipt.
+- `GET /api/sessions/{record_key}/archive`: previews one archive operation.
+- `POST /api/sessions/{record_key}/archive`: archives after `ARCHIVE` confirmation.
+- `POST /api/archives/{record_key}/restore`: restores the original file.
 - `GET /api/reports/{report_name}`: downloads `sessions`, `weekly`, or `blocked`
   as Markdown.
 - `GET /api/sessions/{session_id}/github`: explicit GitHub relationships.
@@ -142,13 +149,16 @@ npm start
 
 Open `http://127.0.0.1:4200`. The development server proxies `/api/**` to the
 local API, so CORS does not need to be enabled. The interface opens with an
-attention queue for potentially blocked sessions and archive candidates,
-explains each signal, and locates it in the filtered inventory. Its report reader
+attention queue for potentially blocked sessions, archive candidates, and
+recoveries, explains each signal, and locates it in the filtered inventory. Its report reader
 renders Markdown headings, lists, and tables inside the page and switches between
 weekly, blocked, and inventory reports; download remains secondary. `Locate`
 moves focus to the exact row and highlights it. `View details` opens metadata,
 token usage, and GitHub relationships in a record that always provides context.
-It adapts to desktop and mobile.
+For an eligible direct Codex session, `Review and archive` opens that record,
+prepares a non-destructive preview, and requires a separate confirmation. The
+queue keeps `Restore` available while its local receipt exists. It adapts to
+desktop and mobile.
 
 ## Token and subscription metrics
 
@@ -257,9 +267,13 @@ python -m zar_agent_session_ops policy --apply
 
 The policy never re-archives sessions already archived by Codex.
 
-The dashboard and `GET /api/retention` expose only the threshold and candidate
-metadata. They neither expose `archive_dir` nor move files; archiving still
-requires `--apply` or `--apply-policy` through the CLI.
+The dashboard offers the action only for direct Codex JSONL files that still
+match policy. `Prepare archive` moves nothing and exposes no paths; `Confirm
+archive` sends the literal `ARCHIVE` confirmation. Moving the file creates a
+`.restore.json` receipt in `archive_dir`. `GET /api/archives` shows it again in
+the queue after reload, and `Restore` returns the JSONL to its original location
+when that path remains free. ChatGPT ZIP files and Claude Code registry entries
+are excluded from this web action.
 
 ## Potentially blocked sessions
 
@@ -346,18 +360,21 @@ complete original transcript instead of reducing context.
 
 ## Security and privacy
 
-- Scanning and reporting never modify the original JSON or JSONL files.
+- Scanning, reporting, and archive preview never modify original JSON or JSONL
+  files.
 - The application database contains metadata, not transcripts.
 - ChatGPT conversations remain in the original ZIP or JSON.
 - Claude Code registry JSON is read only and is not copied as transcripts.
 - The project does not query Codex's internal SQLite databases.
-- The API is loopback-bound and omits source-file paths. Its only operational
-  mutation, `POST /api/refresh`, rewrites only the application's SQLite index.
+- The API is loopback-bound and omits source-file paths. Refresh rewrites only
+  the application index; archiving requires a still-eligible session and the
+  literal `ARCHIVE` confirmation.
 - GitHub integration sends only explicit identifiers to `api.github.com`.
 - `--apply` is required before files can move.
 - `maintain` also requires `--apply-policy` before files can move.
 - Summaries, handoffs, and operational digests are sent only to local Ollama.
-- Under Compose, Codex and Claude Code are mounted read-only, the API runs as UID
+- Under Compose, Claude Code remains read-only. Codex is writable only so the API
+  can perform confirmed archive and restore operations; the API runs as UID
   10001, and only the dashboard publishes a port bound to `127.0.0.1`.
 
 ## Development
@@ -385,8 +402,7 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 
 ## Next milestones
 
-- Confirmed archiving from the attention queue, with explicit preview and
-  recovery.
+- Handoff generation and false-block dismissal from the operational record.
 - Claude Code history and transcripts, plus an OpenCode adapter, once real
   fixtures for those sources are available.
 - Server-side pagination and authentication when usage moves beyond loopback.

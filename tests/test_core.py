@@ -8,13 +8,16 @@ from unittest.mock import patch
 
 from zar_agent_session_ops.core import (
     Policy,
+    archive_recoveries,
     archive_session,
+    archive_session_reversible,
     archive_sessions,
     extract_transcript,
     load_sessions,
     load_policy,
     markdown_report,
     policy_candidates,
+    restore_archived_session,
     scan_codex,
     session_handoff,
     summarize_with_ollama,
@@ -115,6 +118,50 @@ class SessionFlowTest(unittest.TestCase):
             self.assertFalse(plans[0][0].exists())
             self.assertTrue(plans[0][1].exists())
             self.assertEqual(["recent"], [item.session_id for item in load_sessions(database)])
+
+    def test_reversible_archive_keeps_a_receipt_and_restores_the_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "sessions"
+            source.mkdir()
+            session_file = source / "session.jsonl"
+            session_file.write_text(
+                json.dumps(
+                    {
+                        "timestamp": "2026-07-01T10:00:00Z",
+                        "type": "session_meta",
+                        "payload": {"id": "reversible", "cwd": "D:/repo"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            database = root / "sessions.db"
+            sync_sessions(database, scan_codex(source))
+            session = load_sessions(database)[0]
+            archive_dir = root / "archive"
+
+            _, destination, receipt = archive_session_reversible(
+                database, session, archive_dir, apply=True
+            )
+            self.assertFalse(session_file.exists())
+            self.assertTrue(destination.exists())
+            self.assertTrue(receipt.exists())
+            self.assertEqual([], load_sessions(database))
+            self.assertEqual("reversible", archive_recoveries(archive_dir)[0]["session_id"])
+
+            restored_id, restored_source, archived_source = restore_archived_session(
+                receipt.name.removeprefix(".").removesuffix(".restore.json"),
+                archive_dir,
+            )
+            self.assertEqual("reversible", restored_id)
+            self.assertEqual(session_file.resolve(), restored_source)
+            self.assertEqual(destination.resolve(), archived_source)
+            self.assertTrue(session_file.exists())
+            self.assertFalse(destination.exists())
+            self.assertFalse(receipt.exists())
+            self.assertEqual([], archive_recoveries(archive_dir))
+            with self.assertRaisesRegex(ValueError, "Invalid session record key"):
+                restore_archived_session("../outside", archive_dir)
 
     def test_weekly_report_and_local_summary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

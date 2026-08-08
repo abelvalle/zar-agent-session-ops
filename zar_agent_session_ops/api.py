@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 from time import perf_counter
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException
 from fastapi.responses import Response
 
 from . import __version__
@@ -17,17 +17,23 @@ from .core import (
     DEFAULT_CLAUDE_SOURCE,
     DEFAULT_DATABASE,
     DEFAULT_SOURCE,
+    Policy,
     Session,
+    archive_recoveries,
+    archive_session_reversible,
     blocked_candidates,
     blocked_report,
     find_session,
+    find_session_by_key,
     load_policy,
     load_sessions,
     markdown_report,
     policy_candidates,
+    restore_archived_session,
     scan_claude,
     scan_codex,
     sync_sessions,
+    session_key,
     weekly_report,
 )
 from .github import session_github_references
@@ -38,6 +44,7 @@ LOGGER = logging.getLogger(__name__)
 
 def _session_data(session: Session) -> dict[str, object]:
     return {
+        "record_key": session_key(session),
         "id": session.session_id,
         "agent": session.agent,
         "title": session.title,
@@ -85,6 +92,28 @@ def create_app(
         "finished_at": None,
         "error": None,
     }
+
+    def archive_candidate(record_key: str) -> tuple[Session, Policy]:
+        policy = load_policy(config)
+        try:
+            session = find_session_by_key(database, record_key)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        eligible = {
+            session_key(candidate)
+            for candidate in policy_candidates(load_sessions(database), policy)
+        }
+        if record_key not in eligible:
+            raise HTTPException(
+                status_code=409,
+                detail="Session no longer matches the retention policy",
+            )
+        if session.agent != "codex" or session.source_entry:
+            raise HTTPException(
+                status_code=409,
+                detail="Only direct Codex session files can be archived from the dashboard",
+            )
+        return session, policy
 
     # ponytail: process-local state is enough for the single-worker local API.
     def run_refresh() -> None:
@@ -191,6 +220,79 @@ def create_app(
             "count": len(items),
             "archive_after_days": policy.archive_after_days,
             "sessions": [_session_data(item) for item in items],
+        }
+
+    @app.get("/api/archives")
+    def archives() -> dict[str, object]:
+        items = archive_recoveries(load_policy(config).archive_dir)
+        return {"count": len(items), "archives": items}
+
+    @app.get("/api/sessions/{record_key}/archive")
+    def archive_preview(record_key: str) -> dict[str, object]:
+        session, policy = archive_candidate(record_key)
+        try:
+            source_path, destination, _ = archive_session_reversible(
+                database, session, policy.archive_dir
+            )
+        except (FileNotFoundError, FileExistsError, OSError) as error:
+            raise HTTPException(
+                status_code=409,
+                detail="Archive preview is unavailable; refresh and try again",
+            ) from error
+        return {
+            "record_key": record_key,
+            "session_id": session.session_id,
+            "title": session.title,
+            "source_name": source_path.name,
+            "destination_name": destination.name,
+            "size_bytes": session.size_bytes,
+            "archive_after_days": policy.archive_after_days,
+            "confirmation": "ARCHIVE",
+        }
+
+    @app.post("/api/sessions/{record_key}/archive")
+    def archive(
+        record_key: str,
+        confirmation: Annotated[Literal["ARCHIVE"], Body(embed=True)],
+    ) -> dict[str, object]:
+        session, policy = archive_candidate(record_key)
+        try:
+            _, destination, _ = archive_session_reversible(
+                database, session, policy.archive_dir, apply=True
+            )
+        except (FileNotFoundError, FileExistsError, OSError) as error:
+            raise HTTPException(
+                status_code=409,
+                detail="Archive failed; refresh and verify the configured destination",
+            ) from error
+        return {
+            "record_key": record_key,
+            "session_id": session.session_id,
+            "title": session.title,
+            "destination_name": destination.name,
+            "recovery_available": True,
+        }
+
+    @app.post("/api/archives/{record_key}/restore")
+    def restore(record_key: str) -> dict[str, object]:
+        policy = load_policy(config)
+        try:
+            restore_archived_session(record_key, policy.archive_dir)
+            known = load_sessions(database)
+            sync_sessions(database, scan_codex(source, known))
+            session = find_session_by_key(database, record_key)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (FileNotFoundError, FileExistsError, OSError, ValueError) as error:
+            raise HTTPException(
+                status_code=409,
+                detail="Restore failed; verify the archived file and original destination",
+            ) from error
+        return {
+            "record_key": record_key,
+            "session_id": session.session_id,
+            "restored": True,
+            "session": _session_data(session),
         }
 
     @app.get("/api/reports/{report_name}", response_class=Response)

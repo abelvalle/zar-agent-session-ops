@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.20.0' });
     http.expectOne('/api/sessions').flush({
       count: 3,
       sessions: [
@@ -39,6 +39,7 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [session('active-id', 'Build dashboard', 'active')],
     });
+    http.expectOne('/api/archives').flush({ count: 0, archives: [] });
     http.expectOne('/api/reports/weekly').flush('# Weekly report');
 
     await fixture.whenStable();
@@ -46,7 +47,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.19.0');
+    expect(page.textContent).toContain('API 0.20.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -100,7 +101,13 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    for (const url of ['/api/health', '/api/sessions', '/api/blocked', '/api/retention']) {
+    for (const url of [
+      '/api/health',
+      '/api/sessions',
+      '/api/blocked',
+      '/api/retention',
+      '/api/archives',
+    ]) {
       http.expectOne(url).flush('offline', { status: 503, statusText: 'Unavailable' });
     }
     http
@@ -118,7 +125,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.20.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -126,6 +133,7 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [],
     });
+    http.expectOne('/api/archives').flush({ count: 0, archives: [] });
     http
       .expectOne('/api/reports/weekly')
       .flush('offline', { status: 503, statusText: 'Unavailable' });
@@ -177,7 +185,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.20.0' });
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -189,6 +197,7 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [],
     });
+    http.expectOne('/api/archives').flush({ count: 0, archives: [] });
     http.expectOne('/api/reports/weekly').flush('# Weekly report');
     await fixture.whenStable();
     fixture.detectChanges();
@@ -213,7 +222,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.20.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -221,6 +230,7 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [],
     });
+    http.expectOne('/api/archives').flush({ count: 0, archives: [] });
     http.expectOne('/api/reports/weekly').flush('# Weekly report');
     await fixture.whenStable();
     fixture.detectChanges();
@@ -251,7 +261,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.19.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.20.0' });
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],
@@ -266,6 +276,7 @@ describe('App', () => {
       archive_after_days: 30,
       sessions: [],
     });
+    http.expectOne('/api/archives').flush({ count: 0, archives: [] });
     http.expectOne('/api/reports/weekly').flush('# Weekly report updated');
     await fixture.whenStable();
     fixture.detectChanges();
@@ -273,10 +284,133 @@ describe('App', () => {
     expect(page.textContent).toContain('Actualizado en 1.0 s: 1 con cambios y 0 sin cambios');
     expect(page.textContent).toContain('Fresh work');
   });
+
+  it('previews, confirms and restores an archived session from its detail', async () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const candidate = session('old-id', 'Old session', 'active');
+
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.20.0' });
+    http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
+    http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
+    http.expectOne('/api/retention').flush({
+      count: 1,
+      archive_after_days: 30,
+      sessions: [candidate],
+    });
+    http.expectOne('/api/archives').flush({ count: 0, archives: [] });
+    http.expectOne('/api/reports/weekly').flush('# Weekly report');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const page = fixture.nativeElement as HTMLElement;
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Revisar y archivar'))
+      ?.click();
+    fixture.detectChanges();
+    http.expectOne('/api/sessions/old-id/github').flush({
+      session_id: 'old-id',
+      count: 0,
+      references: [],
+    });
+    expect(page.textContent).toContain('Ciclo de vida');
+
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Preparar archivado'))
+      ?.click();
+    http.expectOne(`/api/sessions/${candidate.record_key}/archive`).flush({
+      record_key: candidate.record_key,
+      session_id: candidate.id,
+      title: candidate.title,
+      source_name: 'old.jsonl',
+      destination_name: 'old.jsonl',
+      size_bytes: candidate.size_bytes,
+      archive_after_days: 30,
+      confirmation: 'ARCHIVE',
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.textContent).toContain('Confirmar moverá el archivo');
+    expect(page.textContent).toContain('old.jsonl');
+
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Confirmar archivado'))
+      ?.click();
+    const archive = http.expectOne(`/api/sessions/${candidate.record_key}/archive`);
+    expect(archive.request.body).toEqual({ confirmation: 'ARCHIVE' });
+    archive.flush({
+      record_key: candidate.record_key,
+      session_id: candidate.id,
+      title: candidate.title,
+      destination_name: 'old.jsonl',
+      recovery_available: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+    http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
+    http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
+    http.expectOne('/api/retention').flush({
+      count: 0,
+      archive_after_days: 30,
+      sessions: [],
+    });
+    http.expectOne('/api/archives').flush({
+      count: 1,
+      archives: [
+        {
+          record_key: candidate.record_key,
+          session_id: candidate.id,
+          title: candidate.title,
+          agent: candidate.agent,
+          size_bytes: candidate.size_bytes,
+          archived_at: '2026-08-08T10:00:00Z',
+          destination_name: 'old.jsonl',
+        },
+      ],
+    });
+    http.expectOne('/api/reports/weekly').flush('# Weekly report');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.textContent).toContain('Sesión archivada');
+    expect(page.textContent).toContain('Deshacer archivado');
+    expect(page.textContent).toContain('Archivadas recuperables');
+
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.trim() === 'Cerrar')
+      ?.click();
+    fixture.detectChanges();
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.trim() === 'Restaurar')
+      ?.click();
+    http.expectOne(`/api/archives/${candidate.record_key}/restore`).flush({
+      record_key: candidate.record_key,
+      session_id: candidate.id,
+      restored: true,
+      session: candidate,
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+    http.expectOne('/api/sessions/old-id/github').flush({
+      session_id: 'old-id',
+      count: 0,
+      references: [],
+    });
+    http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
+    http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
+    http.expectOne('/api/retention').flush({
+      count: 1,
+      archive_after_days: 30,
+      sessions: [candidate],
+    });
+    http.expectOne('/api/archives').flush({ count: 0, archives: [] });
+    http.expectOne('/api/reports/weekly').flush('# Weekly report');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.textContent).toContain('Preparar archivado');
+  });
 });
 
 function session(id: string, title: string, status: string, agent = 'codex') {
   return {
+    record_key: `${agent}-${id}-${title}`,
     id,
     agent,
     title,

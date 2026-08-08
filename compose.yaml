@@ -2,7 +2,7 @@ name: zar-agent-session-ops
 
 services:
   api:
-    image: zar-agent-session-ops-api:0.19.0
+    image: zar-agent-session-ops-api:0.20.0
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -16,7 +16,6 @@ services:
       - type: bind
         source: ${CODEX_HOME:?Set CODEX_HOME to the local .codex directory}
         target: /codex
-        read_only: true
       - type: bind
         source: ${CLAUDE_HOME:-./docker/empty-claude}
         target: /claude
@@ -36,7 +35,7 @@ services:
       start_period: 5m
 
   dashboard:
-    image: zar-agent-session-ops-dashboard:0.19.0
+    image: zar-agent-session-ops-dashboard:0.20.0
     build:
       context: .
       dockerfile: docker/dashboard.Dockerfile

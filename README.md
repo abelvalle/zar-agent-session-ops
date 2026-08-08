@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.19.0` convierte el
-dashboard en una superficie de diagnóstico: renderiza Markdown, localiza y
-resalta la fila exacta, abre una ficha útil y cuantifica el consumo Codex.
+sesiones locales de agentes de programación. La versión `0.20.0` completa la
+primera acción de ciclo de vida en el dashboard: previsualiza, confirma, archiva
+y restaura sesiones Codex candidatas sin exponer sus rutas.
 
 ## Funciones disponibles
 
@@ -38,6 +38,9 @@ resalta la fila exacta, abre una ficha útil y cuantifica el consumo Codex.
 - Genera un relevo Markdown mínimo para una nueva sesión Codex o ChatGPT.
 - Archiva sesiones individualmente o mediante una política configurable.
 - Previsualiza las sesiones que cumplirían la política sin mover archivos.
+- Permite revisar y confirmar el archivado desde la ficha operativa.
+- Conserva recibos locales y muestra las sesiones archivadas recuperables en la
+  cola de atención, incluso después de recargar la web.
 - Simula cualquier archivado salvo que se indique `--apply`.
 - Importa metadatos y transcripciones bajo demanda desde un ZIP o JSON oficial
   de ChatGPT sin copiar las conversaciones a la base propia.
@@ -78,9 +81,10 @@ $env:CLAUDE_HOME = "$HOME\.claude" # opcional
 docker compose up --build -d
 ```
 
-Abre `http://127.0.0.1:4200`. En cada arranque, la API escanea los directorios
-montados en `/codex` y `/claude` como solo lectura antes de quedar sana. Si
-`CLAUDE_HOME` no está definido, Compose monta una fuente vacía. Con inventarios
+Abre `http://127.0.0.1:4200`. En cada arranque, la API escanea `/codex` y
+`/claude` antes de quedar sana. `/codex` se monta con escritura para permitir el
+archivado confirmado; `/claude` continúa como solo lectura. Si `CLAUDE_HOME` no
+está definido, Compose monta una fuente vacía. Con inventarios
 grandes y Docker Desktop el arranque puede tardar varios minutos. El dashboard
 es el único servicio publicado y redirige `/api/**` a la API dentro de la red de
 Compose. SQLite y la configuración se conservan en el volumen
@@ -113,6 +117,10 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
   los filtros `agent` y `status`.
 - `GET /api/blocked`: señal conservadora de posibles bloqueos.
 - `GET /api/retention`: vista previa de candidatas según la política local.
+- `GET /api/archives`: archivados con recibo de recuperación disponible.
+- `GET /api/sessions/{record_key}/archive`: previsualiza un archivado concreto.
+- `POST /api/sessions/{record_key}/archive`: archiva tras confirmar `ARCHIVE`.
+- `POST /api/archives/{record_key}/restore`: restaura el archivo original.
 - `GET /api/reports/{report_name}`: descarga `sessions`, `weekly` o `blocked`
   como Markdown.
 - `GET /api/sessions/{session_id}/github`: relaciones GitHub explícitas.
@@ -148,13 +156,16 @@ npm start
 
 Abre `http://127.0.0.1:4200`. El servidor de desarrollo redirige `/api/**` a
 la API local, por lo que no hace falta habilitar CORS. La interfaz abre con una
-cola de atención para posibles bloqueos y candidatas a archivo, explica el motivo
-de cada señal y permite localizarla en el inventario filtrado. El lector de
+cola de atención para posibles bloqueos, candidatas a archivo y recuperaciones,
+explica cada señal y permite localizarla en el inventario filtrado. El lector de
 informes renderiza títulos, listas y tablas del Markdown dentro de la página y
 permite alternar entre semanal, bloqueos e inventario; la descarga queda como
 acción secundaria. `Localizar` lleva el foco a la fila exacta y la resalta. `Ver
 detalle` abre metadatos, consumo de tokens y relaciones GitHub en una ficha que
-siempre aporta contexto. Se adapta a escritorio y móvil.
+siempre aporta contexto. Para una candidata Codex directa, `Revisar y archivar`
+abre esa ficha, prepara una vista previa no destructiva y exige una confirmación
+separada. La cola conserva `Restaurar` mientras exista el recibo local. Se adapta
+a escritorio y móvil.
 
 ## Métricas de tokens y suscripción
 
@@ -267,9 +278,13 @@ python -m zar_agent_session_ops policy --apply
 Las sesiones ya archivadas por Codex nunca se vuelven a archivar mediante la
 política.
 
-El dashboard y `GET /api/retention` muestran únicamente el umbral y los
-metadatos de las candidatas. No exponen `archive_dir` ni ejecutan movimientos;
-el archivado continúa requiriendo `--apply` o `--apply-policy` en la CLI.
+El dashboard solo ofrece la acción para archivos JSONL Codex directos que sigan
+cumpliendo la política. `Preparar archivado` no mueve nada ni expone rutas;
+`Confirmar archivado` envía la confirmación literal `ARCHIVE`. Al mover el
+archivo se crea un recibo `.restore.json` en `archive_dir`. `GET /api/archives`
+lo vuelve a mostrar en la cola tras una recarga y `Restaurar` devuelve el JSONL
+a su ubicación original si sigue libre. Los ZIP de ChatGPT y los registros
+Claude Code quedan fuera de esta acción web.
 
 ## Sesiones potencialmente bloqueadas
 
@@ -356,20 +371,24 @@ transcripción original completa en vez de reducir el contexto.
 
 ## Seguridad y privacidad
 
-- El escaneo y los informes nunca modifican los JSON o JSONL originales.
+- El escaneo, los informes y la vista previa nunca modifican los JSON o JSONL
+  originales.
 - La base propia contiene metadatos, no transcripciones.
 - Las conversaciones ChatGPT permanecen dentro del ZIP o JSON original.
 - Los registros JSON de Claude Code solo se leen y no se copian como
   transcripciones.
 - El proyecto no consulta las bases SQLite internas de Codex.
-- La API se liga a loopback y omite las rutas de archivos fuente. Su única
-  mutación operativa, `POST /api/refresh`, reescribe solo el índice SQLite propio.
+- La API se liga a loopback y omite las rutas de archivos fuente. El refresco
+  reescribe solo el índice propio; archivar requiere una sesión aún elegible y
+  la confirmación literal `ARCHIVE`.
 - La integración GitHub solo envía identificadores explícitos a `api.github.com`.
 - `--apply` es obligatorio para mover archivos.
 - `maintain` tampoco mueve archivos sin `--apply-policy`.
 - Los resúmenes, relevos e informes operativos solo se envían al Ollama local.
-- En Compose, Codex y Claude Code se montan como solo lectura, la API se ejecuta
-  con UID 10001 y solo el dashboard publica un puerto ligado a `127.0.0.1`.
+- En Compose, Claude Code se monta como solo lectura. Codex se monta con escritura
+  para ejecutar únicamente el archivado confirmado y su restauración; la API se
+  ejecuta con UID 10001 y solo el dashboard publica un puerto ligado a
+  `127.0.0.1`.
 
 ## Desarrollo
 
@@ -396,8 +415,7 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 
 ## Próximos hitos
 
-- Archivado confirmado desde la cola de atención, manteniendo vista previa y
-  recuperación explícitas.
+- Generación de relevo y descarte de falsos bloqueos desde la ficha operativa.
 - Historial y transcripciones Claude Code, y adaptador OpenCode, cuando existan
   fixtures reales de esas fuentes.
 - Paginación de servidor y autenticación cuando el uso deje de ser local.

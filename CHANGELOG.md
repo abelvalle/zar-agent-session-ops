@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.20.0 - Confirmed reversible archiving / Archivado reversible confirmado
+
+- ES: convierte cada candidata Codex directa en un flujo progresivo de
+  previsualización, confirmación literal y archivado desde la ficha operativa.
+- EN: turns each direct Codex candidate into a progressive preview, literal
+  confirmation, and archive flow from the operational record.
+- ES: crea recibos persistentes sin exponer rutas y muestra recuperaciones
+  disponibles en la cola incluso después de recargar el dashboard.
+- EN: creates persistent receipts without exposing paths and shows available
+  recoveries in the queue even after the dashboard is reloaded.
+- ES: añade claves opacas por registro para actuar sobre la sesión exacta aunque
+  existan identificadores repetidos.
+- EN: adds opaque per-record keys so actions target the exact session even when
+  identifiers are duplicated.
+- Verificación / Verification: 19 pruebas Python, 6 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.20 validados.
+- Detalles / Details: [docs/milestones/0.20.0.md](docs/milestones/0.20.0.md).
+
 ## 0.19.0 - Session insight and usage / Diagnóstico y consumo de sesiones
 
 - ES: renderiza los informes Markdown como HTML legible dentro del dashboard y

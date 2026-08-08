@@ -26,6 +26,7 @@ interface TokenUsage {
 }
 
 interface AgentSession {
+  record_key: string;
   id: string;
   agent: string;
   title: string;
@@ -87,6 +88,49 @@ interface GitHubResponse {
   references: GitHubReference[];
 }
 
+interface ArchivePreview {
+  record_key: string;
+  session_id: string;
+  title: string;
+  source_name: string;
+  destination_name: string;
+  size_bytes: number;
+  archive_after_days: number;
+  confirmation: 'ARCHIVE';
+}
+
+interface ArchiveResult {
+  record_key: string;
+  session_id: string;
+  title: string;
+  destination_name: string;
+  recovery_available: boolean;
+}
+
+interface ArchiveRecovery {
+  record_key: string;
+  session_id: string;
+  title: string;
+  agent: string;
+  size_bytes: number;
+  archived_at: string;
+  destination_name: string;
+}
+
+interface ArchiveRecoveryResponse {
+  count: number;
+  archives: ArchiveRecovery[];
+}
+
+interface RestoreResult {
+  record_key: string;
+  session_id: string;
+  restored: boolean;
+  session: AgentSession;
+}
+
+type ArchiveStatus = 'idle' | 'loading' | 'preview' | 'archiving' | 'archived' | 'restoring';
+
 type ReportName = 'weekly' | 'blocked' | 'sessions';
 
 @Component({
@@ -125,6 +169,12 @@ export class App {
   protected readonly selectedSession = signal<AgentSession | null>(null);
   protected readonly locatedSession = signal<AgentSession | null>(null);
   protected readonly refreshState = signal<RefreshResponse | null>(null);
+  protected readonly archiveStatus = signal<ArchiveStatus>('idle');
+  protected readonly archivePreview = signal<ArchivePreview | null>(null);
+  protected readonly archiveResult = signal<ArchiveResult | null>(null);
+  protected readonly archiveError = signal<string | null>(null);
+  protected readonly restoringKey = signal<string | null>(null);
+  protected readonly recoveryError = signal<string | null>(null);
   protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
     { id: 'weekly', label: 'Semanal' },
     { id: 'blocked', label: 'Bloqueos' },
@@ -135,6 +185,7 @@ export class App {
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
   protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
+  protected readonly recoveries = httpResource<ArchiveRecoveryResponse>(() => '/api/archives');
   protected readonly report = httpResource.text(
     () => `/api/reports/${this.selectedReport()}`,
   );
@@ -210,7 +261,8 @@ export class App {
       this.health.isLoading() ||
       this.inventory.isLoading() ||
       this.blocked.isLoading() ||
-      this.retention.isLoading(),
+      this.retention.isLoading() ||
+      this.recoveries.isLoading(),
   );
   protected readonly failed = computed(
     () =>
@@ -218,7 +270,8 @@ export class App {
         this.health.error() ||
         this.inventory.error() ||
         this.blocked.error() ||
-        this.retention.error()
+        this.retention.error() ||
+        this.recoveries.error()
       ),
   );
 
@@ -275,6 +328,7 @@ export class App {
     this.inventory.reload();
     this.blocked.reload();
     this.retention.reload();
+    this.recoveries.reload();
     this.report.reload();
     if (this.selectedSession()) {
       this.github.reload();
@@ -337,11 +391,155 @@ export class App {
   }
 
   protected openDetails(session: AgentSession): void {
+    this.resetArchiveFlow();
     this.selectedSession.set(session);
   }
 
   protected closeDetails(): void {
+    this.resetArchiveFlow();
     this.selectedSession.set(null);
+  }
+
+  protected reviewRetention(session: AgentSession): void {
+    this.locateSession(session);
+    this.openDetails(session);
+    setTimeout(() => {
+      const detail = document.querySelector('.session-detail');
+      if (typeof detail?.scrollIntoView === 'function') {
+        detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }
+
+  protected isRetentionCandidate(session: AgentSession): boolean {
+    return (this.retention.value()?.sessions ?? []).some(
+      (candidate) => candidate.record_key === session.record_key,
+    );
+  }
+
+  protected prepareArchive(session: AgentSession): void {
+    if (this.archiveStatus() !== 'idle') {
+      return;
+    }
+    this.archiveError.set(null);
+    this.archiveStatus.set('loading');
+    this.http
+      .get<ArchivePreview>(`/api/sessions/${session.record_key}/archive`)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (preview) => {
+          this.archivePreview.set(preview);
+          this.archiveStatus.set('preview');
+        },
+        error: () => {
+          this.archiveError.set(
+            'No se pudo preparar el archivado. Actualiza el inventario y vuelve a intentarlo.',
+          );
+          this.archiveStatus.set('idle');
+        },
+      });
+  }
+
+  protected cancelArchive(): void {
+    this.archivePreview.set(null);
+    this.archiveError.set(null);
+    this.archiveStatus.set('idle');
+  }
+
+  protected confirmArchive(): void {
+    const preview = this.archivePreview();
+    if (!preview || this.archiveStatus() !== 'preview') {
+      return;
+    }
+    this.archiveError.set(null);
+    this.archiveStatus.set('archiving');
+    this.http
+      .post<ArchiveResult>(`/api/sessions/${preview.record_key}/archive`, {
+        confirmation: preview.confirmation,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.archiveResult.set(result);
+          this.archivePreview.set(null);
+          this.archiveStatus.set('archived');
+          this.reloadOperationalViews();
+        },
+        error: () => {
+          this.archiveError.set(
+            'No se archivó la sesión. Puede haber cambiado o existir ya un archivo con ese nombre.',
+          );
+          this.archiveStatus.set('preview');
+        },
+      });
+  }
+
+  protected restoreArchive(): void {
+    const result = this.archiveResult();
+    if (!result || this.archiveStatus() !== 'archived') {
+      return;
+    }
+    this.archiveStatus.set('restoring');
+    this.restoreRecord(result.record_key, true);
+  }
+
+  protected restoreRecovery(recovery: ArchiveRecovery): void {
+    if (this.restoringKey()) {
+      return;
+    }
+    this.restoreRecord(recovery.record_key, false);
+  }
+
+  private restoreRecord(recordKey: string, fromDetail: boolean): void {
+    this.archiveError.set(null);
+    this.recoveryError.set(null);
+    this.restoringKey.set(recordKey);
+    this.http
+      .post<RestoreResult>(`/api/archives/${recordKey}/restore`, {})
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (restored) => {
+          this.selectedSession.set(restored.session);
+          this.archiveResult.set(null);
+          this.archiveStatus.set('idle');
+          this.restoringKey.set(null);
+          this.reloadOperationalViews();
+          if (!fromDetail) {
+            setTimeout(() => {
+              const detail = document.querySelector('.session-detail');
+              if (typeof detail?.scrollIntoView === 'function') {
+                detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            });
+          }
+        },
+        error: () => {
+          const message = 'No se pudo restaurar. Comprueba que el destino original siga libre.';
+          if (fromDetail) {
+            this.archiveError.set(message);
+          } else {
+            this.recoveryError.set(message);
+          }
+          this.archiveStatus.set('archived');
+          this.restoringKey.set(null);
+        },
+      });
+  }
+
+  private resetArchiveFlow(): void {
+    this.archiveStatus.set('idle');
+    this.archivePreview.set(null);
+    this.archiveResult.set(null);
+    this.archiveError.set(null);
+    this.restoringKey.set(null);
+  }
+
+  private reloadOperationalViews(): void {
+    this.inventory.reload();
+    this.blocked.reload();
+    this.retention.reload();
+    this.recoveries.reload();
+    this.report.reload();
   }
 
   protected isLocated(session: AgentSession): boolean {
@@ -354,7 +552,7 @@ export class App {
   }
 
   private sessionRecordKey(session: AgentSession): string {
-    return `${session.id}:${session.last_activity_at}:${session.size_bytes}`;
+    return session.record_key;
   }
 
   protected agentName(agent: string): string {

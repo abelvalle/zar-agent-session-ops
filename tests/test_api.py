@@ -8,7 +8,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from zar_agent_session_ops.api import create_app
-from zar_agent_session_ops.core import Session, TokenUsage, sync_sessions
+from zar_agent_session_ops.core import Session, TokenUsage, scan_codex, sync_sessions
 
 
 class ApiTest(unittest.TestCase):
@@ -77,7 +77,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.19.0"},
+                    {"status": "ok", "version": "0.20.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -149,7 +149,10 @@ class ApiTest(unittest.TestCase):
                         "/api/refresh",
                         "/api/sessions",
                         "/api/blocked",
+                        "/api/archives",
                         "/api/retention",
+                        "/api/sessions/{record_key}/archive",
+                        "/api/archives/{record_key}/restore",
                         "/api/reports/{report_name}",
                         "/api/sessions/{session_id}/github",
                     },
@@ -158,6 +161,66 @@ class ApiTest(unittest.TestCase):
                 self.assertEqual("ok", client.get("/health").json()["status"])
 
             self.assertEqual("source remains untouched", source.read_text(encoding="utf-8"))
+
+    def test_previews_confirms_and_restores_a_retention_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "codex"
+            session_path = source / "sessions" / "old.jsonl"
+            session_path.parent.mkdir(parents=True)
+            session_path.write_text(
+                json.dumps(
+                    {
+                        "timestamp": "2026-01-01T10:00:00Z",
+                        "type": "session_meta",
+                        "payload": {"id": "old-session", "cwd": "D:/repo"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            database = root / "sessions.db"
+            sync_sessions(database, scan_codex(source))
+            config = root / "config.toml"
+            config.write_text(
+                '[policy]\narchive_after_days = 1\narchive_dir = "archive"\n',
+                encoding="utf-8",
+            )
+
+            with TestClient(create_app(database, config, source, root / "claude")) as client:
+                candidate = client.get("/api/retention").json()["sessions"][0]
+                record_key = candidate["record_key"]
+                preview = client.get(f"/api/sessions/{record_key}/archive")
+                self.assertEqual(200, preview.status_code)
+                self.assertEqual("old.jsonl", preview.json()["source_name"])
+                self.assertNotIn(str(root), preview.text)
+                self.assertTrue(session_path.exists())
+
+                rejected = client.post(
+                    f"/api/sessions/{record_key}/archive",
+                    json={"confirmation": "archive"},
+                )
+                self.assertEqual(422, rejected.status_code)
+                self.assertTrue(session_path.exists())
+
+                archived = client.post(
+                    f"/api/sessions/{record_key}/archive",
+                    json={"confirmation": "ARCHIVE"},
+                )
+                self.assertEqual(200, archived.status_code)
+                self.assertTrue(archived.json()["recovery_available"])
+                self.assertFalse(session_path.exists())
+                self.assertEqual(0, client.get("/api/sessions").json()["count"])
+                recoveries = client.get("/api/archives").json()
+                self.assertEqual(1, recoveries["count"])
+                self.assertEqual("old-session", recoveries["archives"][0]["session_id"])
+
+                restored = client.post(f"/api/archives/{record_key}/restore")
+                self.assertEqual(200, restored.status_code)
+                self.assertTrue(restored.json()["restored"])
+                self.assertEqual("old-session", restored.json()["session"]["id"])
+                self.assertTrue(session_path.exists())
+                self.assertEqual(1, client.get("/api/sessions").json()["count"])
+                self.assertEqual(0, client.get("/api/archives").json()["count"])
 
     def test_refreshes_inventory_in_background(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

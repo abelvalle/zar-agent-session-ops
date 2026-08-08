@@ -301,7 +301,7 @@ h3 {
 
 .attention-columns {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .attention-panel {
@@ -648,9 +648,90 @@ mat-paginator {
 }
 
 .detail-grid dd,
-.token-breakdown dd {
+.token-breakdown dd,
+.archive-preview dd {
   margin: 5px 0 0;
   overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.lifecycle-detail {
+  padding: 24px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container);
+}
+
+.lifecycle-detail h3,
+.lifecycle-detail p {
+  margin-bottom: 0;
+}
+
+.lifecycle-detail > div:first-child > p,
+.lifecycle-intro p,
+.archive-preview > p,
+.lifecycle-result p {
+  max-width: 72ch;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 13px;
+}
+
+.lifecycle-intro,
+.lifecycle-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.lifecycle-result {
+  align-items: flex-start;
+  padding: 18px;
+  border: 1px solid var(--mat-sys-primary);
+  border-radius: 12px;
+}
+
+.lifecycle-result p {
+  flex: 1;
+  margin-top: 2px;
+}
+
+.archive-preview {
+  margin-top: 20px;
+}
+
+.archive-preview dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 0 18px;
+}
+
+.archive-preview dl > div {
+  min-width: 0;
+  padding-right: 18px;
+}
+
+.archive-preview dt {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.archive-preview dd {
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.lifecycle-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.lifecycle-error {
+  margin-top: 16px;
+  color: var(--mat-sys-error);
+  font-size: 13px;
   font-weight: 650;
 }
 
@@ -870,6 +951,7 @@ code {
 
   .usage-limit,
   .usage-totals,
+  .lifecycle-detail,
   .token-detail,
   .github-detail {
     padding: 20px;
@@ -882,8 +964,19 @@ code {
   }
 
   .usage-totals dl,
-  .token-breakdown {
+  .token-breakdown,
+  .archive-preview dl {
     grid-template-columns: 1fr;
+  }
+
+  .archive-preview dl {
+    gap: 14px;
+  }
+
+  .lifecycle-intro,
+  .lifecycle-result {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .detail-grid {
