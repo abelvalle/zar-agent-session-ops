@@ -545,6 +545,52 @@
           </div>
         </dl>
 
+        <section class="handoff-detail" aria-labelledby="handoff-title">
+          <div class="handoff-heading">
+            <div>
+              <h3 id="handoff-title">Relevo para continuar</h3>
+              <p>
+                Contexto mínimo generado localmente a partir de metadatos y fragmentos recientes.
+              </p>
+            </div>
+            @if (handoffStatus() !== 'ready') {
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="handoffStatus() === 'loading'"
+                (click)="generateHandoff(selected)"
+              >
+                {{ handoffStatus() === 'loading' ? 'Generando…' : 'Generar relevo' }}
+              </button>
+            }
+          </div>
+
+          @if (handoffStatus() === 'loading') {
+            <mat-progress-bar mode="indeterminate" aria-label="Generando relevo" />
+          } @else if (handoffStatus() === 'ready') {
+            <div class="handoff-actions">
+              <button mat-stroked-button type="button" (click)="copyHandoff()">
+                Copiar Markdown
+              </button>
+              <a mat-button [href]="handoffUrl(selected)" download="session-handoff.md">
+                Descargar .md
+              </a>
+              @if (handoffCopied()) {
+                <span role="status">Copiado al portapapeles.</span>
+              }
+            </div>
+            <article
+              class="report-content handoff-content"
+              aria-label="Contenido del relevo"
+              [innerHTML]="handoffHtml()"
+            ></article>
+          }
+
+          @if (handoffError()) {
+            <p class="lifecycle-error" role="alert">{{ handoffError() }}</p>
+          }
+        </section>
+
         @if (
           isBlockedCandidate(selected) ||
           blockReviewStatus() === 'dismissed' ||

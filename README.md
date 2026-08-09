@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.21.0` permite revisar,
-descartar y reactivar falsos bloqueos desde el dashboard sin modificar los
-archivos de sesión.
+sesiones locales de agentes de programación. La versión `0.22.0` genera un
+relevo Markdown visible, copiable y descargable desde cada ficha sin requerir
+Ollama ni modificar la sesión fuente.
 
 ## Funciones disponibles
 
@@ -37,7 +37,8 @@ archivos de sesión.
   GitHub; el detalle conserva valor aunque no existan referencias GitHub.
 - Resuelve enlaces explícitos a GitHub Issues, Pull Requests y commits.
 - Resume una sesión mediante un modelo Ollama local.
-- Genera un relevo Markdown mínimo para una nueva sesión Codex o ChatGPT.
+- Genera un relevo Markdown base desde cualquier ficha con metadatos y contexto
+  reciente acotado; Ollama sigue disponible como síntesis CLI opcional.
 - Archiva sesiones individualmente o mediante una política configurable.
 - Previsualiza las sesiones que cumplirían la política sin mover archivos.
 - Permite revisar y confirmar el archivado desde la ficha operativa.
@@ -117,6 +118,8 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `POST /api/refresh`: inicia un escaneo Codex y Claude Code en segundo plano.
 - `GET /api/sessions`: inventario con telemetría de tokens cuando existe; admite
   los filtros `agent` y `status`.
+- `GET /api/sessions/{record_key}/handoff`: relevo Markdown base de la sesión
+  exacta, sin rutas fuente ni dependencia de Ollama.
 - `GET /api/blocked`: señales activas y descartadas de posibles bloqueos.
 - `POST /api/sessions/{record_key}/blocked-dismissal`: descarta una señal tras
   confirmar `NOT_BLOCKED`.
@@ -169,8 +172,9 @@ permite alternar entre semanal, bloqueos e inventario; la descarga queda como
 acción secundaria. `Revisar señal` lleva el foco a la fila exacta, la resalta y
 abre la explicación de la heurística. Desde esa ficha se puede confirmar un
 falso positivo y deshacerlo; la cola conserva las señales descartadas. `Ver
-detalle` abre metadatos, consumo de tokens y relaciones GitHub en una ficha que
-siempre aporta contexto. Para una candidata Codex directa, `Revisar y archivar`
+detalle` abre metadatos, consumo de tokens, relaciones GitHub y `Relevo para
+continuar`. El relevo se renderiza en la ficha y ofrece copia y descarga
+Markdown. Para una candidata Codex directa, `Revisar y archivar`
 abre esa ficha, prepara una vista previa no destructiva y exige una confirmación
 separada. La cola conserva `Restaurar` mientras exista el recibo local. Se adapta
 a escritorio y móvil.
@@ -368,9 +372,14 @@ no se concatena al Markdown generado y las fuentes nunca se modifican.
 
 ## Relevo de contexto mínimo
 
-`handoff` reutiliza la extracción local y Ollama para producir únicamente el
-objetivo, trabajo completado, decisiones, pendientes, riesgos y primera acción.
-No concatena la transcripción original al resultado ni modifica la sesión fuente.
+El dashboard genera siempre un relevo base sin modelo. Incluye metadatos, el
+objetivo conocido, el último resultado y cualquier petición posterior, cada
+fragmento limitado a 800 caracteres. Declara lo que no puede inferir y nunca
+incluye la ruta fuente. El Markdown se lee, copia o descarga desde la ficha.
+
+El comando `handoff` conserva la síntesis semántica opcional mediante Ollama para
+producir objetivo, trabajo completado, decisiones, pendientes, riesgos y primera
+acción. No concatena la transcripción original ni modifica la sesión fuente.
 
 ```powershell
 python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b --output session-handoff.md
@@ -396,7 +405,8 @@ transcripción original completa en vez de reducir el contexto.
 - La integración GitHub solo envía identificadores explícitos a `api.github.com`.
 - `--apply` es obligatorio para mover archivos.
 - `maintain` tampoco mueve archivos sin `--apply-policy`.
-- Los resúmenes, relevos e informes operativos solo se envían al Ollama local.
+- El relevo base del dashboard no sale de la API local. Los resúmenes, relevos
+  CLI enriquecidos e informes operativos solo se envían al Ollama local.
 - En Compose, Claude Code se monta como solo lectura. Codex se monta con escritura
   para ejecutar únicamente el archivado confirmado y su restauración; la API se
   ejecuta con UID 10001 y solo el dashboard publica un puerto ligado a
@@ -427,7 +437,6 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 
 ## Próximos hitos
 
-- Generación de relevo desde la ficha operativa.
 - Historial y transcripciones Claude Code, y adaptador OpenCode, cuando existan
   fixtures reales de esas fuentes.
 - Paginación de servidor y autenticación cuando el uso deje de ser local.

@@ -77,7 +77,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.21.0"},
+                    {"status": "ok", "version": "0.22.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -91,6 +91,20 @@ class ApiTest(unittest.TestCase):
                     16.0,
                     inventory["sessions"][0]["usage"]["rate_limit_used_percent"],
                 )
+                session_record_key = inventory["sessions"][0]["record_key"]
+                handoff = client.get(
+                    f"/api/sessions/{session_record_key}/handoff"
+                )
+                self.assertEqual(200, handoff.status_code)
+                self.assertTrue(handoff.headers["content-type"].startswith("text/markdown"))
+                self.assertEqual(
+                    'inline; filename="session-handoff.md"',
+                    handoff.headers["content-disposition"],
+                )
+                self.assertIn("# Session handoff", handoff.text)
+                self.assertIn("API test", handoff.text)
+                self.assertNotIn(str(root), handoff.text)
+                self.assertNotIn("source remains untouched", handoff.text)
                 blocked = client.get("/api/blocked").json()
                 self.assertEqual(1, blocked["count"])
                 self.assertEqual(24, blocked["threshold_hours"])
@@ -179,6 +193,7 @@ class ApiTest(unittest.TestCase):
                         "/api/health",
                         "/api/refresh",
                         "/api/sessions",
+                        "/api/sessions/{record_key}/handoff",
                         "/api/blocked",
                         "/api/blocked-dismissals/{record_key}/restore",
                         "/api/archives",

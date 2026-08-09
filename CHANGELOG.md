@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.22.0 - Visible model-free handoff / Relevo visible sin modelo
+
+- ES: genera un relevo Markdown base desde la ficha sin exigir Ollama, llamadas
+  externas ni persistencia de conversación.
+- EN: generates a base Markdown handoff from the record without requiring
+  Ollama, external calls, or conversation persistence.
+- ES: renderiza el relevo dentro de la interfaz y ofrece copia y descarga con
+  fragmentos recientes acotados y escapados.
+- EN: renders the handoff inside the interface and provides copy and download
+  actions with bounded, escaped recent excerpts.
+- ES: mantiene el `handoff --model` CLI como síntesis Ollama opcional y declara
+  de forma explícita los límites del modo base.
+- EN: keeps CLI `handoff --model` as optional Ollama synthesis and explicitly
+  states the limits of base mode.
+- Verificación / Verification: 21 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.22 validados.
+- Detalles / Details: [docs/milestones/0.22.0.md](docs/milestones/0.22.0.md).
+
 ## 0.21.0 - Reversible false-block dismissal / Descarte reversible de falsos bloqueos
 
 - ES: convierte cada posible bloqueo en una revisión desde la ficha y exige la

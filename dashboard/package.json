@@ -1,6 +1,6 @@
 {
   "name": "zar-agent-session-ops-dashboard",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --host 127.0.0.1",

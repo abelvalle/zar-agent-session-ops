@@ -22,9 +22,11 @@ from .core import (
     active_blocked_dismissals,
     archive_recoveries,
     archive_session_reversible,
+    base_session_handoff,
     blocked_candidates,
     blocked_report,
     dismiss_blocked_candidate,
+    extract_session_transcript,
     find_session,
     find_session_by_key,
     load_policy,
@@ -249,6 +251,26 @@ def create_app(
                 for item, dismissed_at in dismissed
             ],
         }
+
+    @app.get("/api/sessions/{record_key}/handoff", response_class=Response)
+    def handoff(record_key: str) -> Response:
+        try:
+            session = find_session_by_key(database, record_key)
+            transcript = extract_session_transcript(session)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (FileNotFoundError, OSError, ValueError) as error:
+            raise HTTPException(
+                status_code=422,
+                detail="Handoff source is unavailable; refresh the inventory and try again",
+            ) from error
+        return Response(
+            content=base_session_handoff(session, transcript),
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": 'inline; filename="session-handoff.md"'
+            },
+        )
 
     @app.post("/api/sessions/{record_key}/blocked-dismissal")
     def dismiss_blocked(

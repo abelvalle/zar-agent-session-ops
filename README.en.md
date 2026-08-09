@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.21.0` reviews, dismisses, and restores false blocked signals from the
-dashboard without changing session files.
+`0.22.0` generates a visible, copyable, and downloadable Markdown handoff from
+each record without requiring Ollama or changing the source session.
 
 ## Available features
 
@@ -36,7 +36,8 @@ dashboard without changing session files.
   GitHub relationships; the record remains useful when no GitHub links exist.
 - Resolves explicit GitHub Issue, Pull Request, and commit links.
 - Summarizes a session with a local Ollama model.
-- Generates a minimal Markdown handoff for a new Codex or ChatGPT session.
+- Generates a base Markdown handoff from any record using metadata and bounded
+  recent context; Ollama remains an optional CLI synthesis path.
 - Archives individual sessions or applies a configurable retention policy.
 - Previews sessions that match retention policy without moving files.
 - Reviews and confirms an archive operation from the operational record.
@@ -112,6 +113,8 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `POST /api/refresh`: starts a background Codex and Claude Code scan.
 - `GET /api/sessions`: inventory with token telemetry when available and optional
   `agent` and `status` filters.
+- `GET /api/sessions/{record_key}/handoff`: base Markdown handoff for the exact
+  session, without source paths or an Ollama dependency.
 - `GET /api/blocked`: active and dismissed potentially blocked signals.
 - `POST /api/sessions/{record_key}/blocked-dismissal`: dismisses a signal after
   `NOT_BLOCKED` confirmation.
@@ -161,8 +164,9 @@ renders Markdown headings, lists, and tables inside the page and switches betwee
 weekly, blocked, and inventory reports; download remains secondary. `Review
 signal` moves focus to the exact row, highlights it, and opens the heuristic
 explanation. The record confirms a false positive and can undo it; the queue
-keeps dismissed signals visible. `View details` opens metadata, token usage, and
-GitHub relationships in a record that always provides context.
+keeps dismissed signals visible. `View details` opens metadata, token usage,
+GitHub relationships, and `Handoff to continue`. The handoff renders in the
+record and can be copied or downloaded as Markdown.
 For an eligible direct Codex session, `Review and archive` opens that record,
 prepares a non-destructive preview, and requires a separate confirmation. The
 queue keeps `Restore` available while its local receipt exists. It adapts to
@@ -357,9 +361,15 @@ is not appended to the generated Markdown, and source files are never modified.
 
 ## Minimal-context handoff
 
-`handoff` reuses local extraction and Ollama to retain only the goal, completed
-work, decisions, pending tasks, risks, and first next action. It neither appends
-the raw transcript to the result nor modifies the source session.
+The dashboard always generates a base handoff without a model. It includes
+metadata, the known objective, latest outcome, and any later request, with each
+excerpt capped at 800 characters. It states what cannot be inferred and never
+includes the source path. Markdown can be read, copied, or downloaded in the
+record.
+
+The `handoff` command keeps the optional Ollama semantic synthesis for the goal,
+completed work, decisions, pending tasks, risks, and first next action. It
+neither appends the raw transcript nor modifies the source session.
 
 ```powershell
 python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b --output session-handoff.md
@@ -384,7 +394,8 @@ complete original transcript instead of reducing context.
 - GitHub integration sends only explicit identifiers to `api.github.com`.
 - `--apply` is required before files can move.
 - `maintain` also requires `--apply-policy` before files can move.
-- Summaries, handoffs, and operational digests are sent only to local Ollama.
+- The dashboard's base handoff stays inside the local API. Summaries, enriched
+  CLI handoffs, and operational digests are sent only to local Ollama.
 - Under Compose, Claude Code remains read-only. Codex is writable only so the API
   can perform confirmed archive and restore operations; the API runs as UID
   10001, and only the dashboard publishes a port bound to `127.0.0.1`.
@@ -414,7 +425,6 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 
 ## Next milestones
 
-- Handoff generation from the operational record.
 - Claude Code history and transcripts, plus an OpenCode adapter, once real
   fixtures for those sources are available.
 - Server-side pagination and authentication when usage moves beyond loopback.

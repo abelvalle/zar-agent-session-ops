@@ -144,6 +144,7 @@ interface BlockDismissalResult {
 
 type ArchiveStatus = 'idle' | 'loading' | 'preview' | 'archiving' | 'archived' | 'restoring';
 type BlockReviewStatus = 'idle' | 'confirming' | 'dismissing' | 'dismissed' | 'restoring';
+type HandoffStatus = 'idle' | 'loading' | 'ready';
 
 type ReportName = 'weekly' | 'blocked' | 'sessions';
 
@@ -193,6 +194,10 @@ export class App {
   protected readonly restoringBlockKey = signal<string | null>(null);
   protected readonly restoringKey = signal<string | null>(null);
   protected readonly recoveryError = signal<string | null>(null);
+  protected readonly handoffStatus = signal<HandoffStatus>('idle');
+  protected readonly handoffMarkdown = signal('');
+  protected readonly handoffError = signal<string | null>(null);
+  protected readonly handoffCopied = signal(false);
   protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
     { id: 'weekly', label: 'Semanal' },
     { id: 'blocked', label: 'Bloqueos' },
@@ -213,6 +218,9 @@ export class App {
   protected readonly sessions = computed(() => this.inventory.value()?.sessions ?? []);
   protected readonly reportHtml = computed(() =>
     marked.parse(this.report.value() ?? '', { async: false, gfm: true }),
+  );
+  protected readonly handoffHtml = computed(() =>
+    marked.parse(this.handoffMarkdown(), { async: false, gfm: true }),
   );
   protected readonly usageSummary = computed(() => {
     const unique = new Map<string, AgentSession>();
@@ -408,13 +416,65 @@ export class App {
   protected openDetails(session: AgentSession): void {
     this.resetArchiveFlow();
     this.resetBlockReview();
+    this.resetHandoff();
     this.selectedSession.set(session);
   }
 
   protected closeDetails(): void {
     this.resetArchiveFlow();
     this.resetBlockReview();
+    this.resetHandoff();
     this.selectedSession.set(null);
+  }
+
+  protected generateHandoff(session: AgentSession): void {
+    if (this.handoffStatus() === 'loading') {
+      return;
+    }
+    const recordKey = session.record_key;
+    this.handoffError.set(null);
+    this.handoffCopied.set(false);
+    this.handoffStatus.set('loading');
+    this.http
+      .get(`/api/sessions/${recordKey}/handoff`, { responseType: 'text' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (markdown) => {
+          if (this.selectedSession()?.record_key !== recordKey) {
+            return;
+          }
+          this.handoffMarkdown.set(markdown);
+          this.handoffStatus.set('ready');
+        },
+        error: () => {
+          if (this.selectedSession()?.record_key !== recordKey) {
+            return;
+          }
+          this.handoffError.set(
+            'No se pudo generar el relevo. Actualiza el inventario y vuelve a intentarlo.',
+          );
+          this.handoffStatus.set('idle');
+        },
+      });
+  }
+
+  protected async copyHandoff(): Promise<void> {
+    const clipboard = globalThis.navigator?.clipboard;
+    if (!clipboard) {
+      this.handoffError.set('El navegador no permite copiar automáticamente. Usa la descarga.');
+      return;
+    }
+    try {
+      await clipboard.writeText(this.handoffMarkdown());
+      this.handoffCopied.set(true);
+      this.handoffError.set(null);
+    } catch {
+      this.handoffError.set('No se pudo copiar. Usa la descarga Markdown.');
+    }
+  }
+
+  protected handoffUrl(session: AgentSession): string {
+    return `/api/sessions/${session.record_key}/handoff`;
   }
 
   protected reviewBlocked(session: AgentSession): void {
@@ -639,6 +699,13 @@ export class App {
   private resetBlockReview(): void {
     this.blockReviewStatus.set('idle');
     this.blockReviewError.set(null);
+  }
+
+  private resetHandoff(): void {
+    this.handoffStatus.set('idle');
+    this.handoffMarkdown.set('');
+    this.handoffError.set(null);
+    this.handoffCopied.set(false);
   }
 
   private reloadOperationalViews(): void {

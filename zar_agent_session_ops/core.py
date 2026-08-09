@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import tomllib
@@ -993,6 +994,79 @@ def summarize_with_ollama(
     return summary
 
 
+def _handoff_header(session: Session) -> str:
+    return (
+        "# Session handoff\n\n"
+        f"- Source agent: `{session.agent}`\n"
+        f"- Source session: `{session.session_id}`\n"
+        f"- Repository: `{session.repository or 'Not identified'}`\n"
+        f"- Status: `{session.status}`\n"
+        f"- Last event: `{session.last_event_type or 'Not identified'}`\n"
+        f"- Last activity: `{session.last_activity_at.isoformat(timespec='seconds')}`\n"
+    )
+
+
+def _handoff_messages(transcript: str) -> list[tuple[str, str]]:
+    chunks = re.split(r"\n\n(?=(?:user|assistant): )", transcript.strip())
+    messages: list[tuple[str, str]] = []
+    for chunk in chunks:
+        role, separator, content = chunk.partition(": ")
+        if separator and role in {"user", "assistant"} and content.strip():
+            messages.append((role, content.strip()))
+    return messages
+
+
+def _handoff_excerpt(text: str, max_chars: int = 800) -> str:
+    excerpt = text.strip()
+    if len(excerpt) > max_chars:
+        excerpt = excerpt[: max_chars - 1].rstrip() + "…"
+    escaped = excerpt.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return "\n".join(f"> {line}" if line else ">" for line in escaped.splitlines())
+
+
+def base_session_handoff(session: Session, transcript: str) -> str:
+    messages = _handoff_messages(transcript)
+    user_messages = [content for role, content in messages if role == "user"]
+    assistant_messages = [content for role, content in messages if role == "assistant"]
+    objective = session.title.strip() if session.title.strip() else (
+        user_messages[0] if user_messages else "Objective not identified in local metadata."
+    )
+    outcome = (
+        _handoff_excerpt(assistant_messages[-1])
+        if assistant_messages
+        else "No assistant outcome is available in the local transcript."
+    )
+    pending = (
+        _handoff_excerpt(messages[-1][1])
+        if messages and messages[-1][0] == "user"
+        else "No explicit pending request follows the last assistant response."
+    )
+    risks = []
+    if session.status == "active" and session.last_event_type == "task_started":
+        risks.append("The session may be unfinished: its last terminal event is `task_started`.")
+    if not messages:
+        risks.append("No user or assistant text was available; this handoff uses metadata only.")
+    if not risks:
+        risks.append("None identified from lifecycle metadata.")
+    repository = session.repository or "the repository"
+    return (
+        f"{_handoff_header(session)}\n"
+        "## Objective\n\n"
+        f"{_handoff_excerpt(objective)}\n\n"
+        "## Last recorded outcome\n\n"
+        f"{outcome}\n\n"
+        "## Technical decisions\n\n"
+        "None inferred in base mode; only explicit local evidence is included.\n\n"
+        "## Pending work\n\n"
+        f"{pending}\n\n"
+        "## Risks\n\n"
+        + "\n".join(f"- {risk}" for risk in risks)
+        + "\n\n## First next action\n\n"
+        f"Inspect the current state of `{repository}` and verify it against the objective "
+        "and last recorded outcome before changing code.\n"
+    )
+
+
 def session_handoff(
     session: Session, transcript: str, model: str, timeout: int = 120
 ) -> str:
@@ -1010,14 +1084,7 @@ def session_handoff(
             "when explicit. Never invent details; write 'None identified' when absent."
         ),
     )
-    return (
-        "# Session handoff\n\n"
-        f"- Source agent: `{session.agent}`\n"
-        f"- Source session: `{session.session_id}`\n"
-        f"- Repository: `{session.repository or 'Not identified'}`\n"
-        f"- Last activity: `{session.last_activity_at.isoformat(timespec='seconds')}`\n\n"
-        f"{summary}\n"
-    )
+    return f"{_handoff_header(session)}\n{summary}\n"
 
 
 def weekly_digest(

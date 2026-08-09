@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.21.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
     http.expectOne('/api/sessions').flush({
       count: 3,
       sessions: [
@@ -47,7 +47,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.21.0');
+    expect(page.textContent).toContain('API 0.22.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -95,6 +95,25 @@ describe('App', () => {
     expect(page.textContent).toContain('Total procesado1500');
     expect(page.textContent).toContain('Ship the widget');
     expect(page.textContent).toContain('Fusionada');
+    expect(page.textContent).toContain('Relevo para continuar');
+
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Generar relevo'))
+      ?.click();
+    const handoff = http.expectOne('/api/sessions/codex-active-id-Build dashboard/handoff');
+    expect(handoff.request.responseType).toBe('text');
+    handoff.flush(
+      '# Session handoff\n\n## Objective\n\nBuild dashboard\n\n<script>alert("unsafe")</script>',
+    );
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(page.querySelector('.handoff-content h1')?.textContent).toContain('Session handoff');
+    expect(page.querySelector('.handoff-content script')).toBeNull();
+    expect(page.textContent).toContain('Copiar Markdown');
+    expect(page.querySelector<HTMLAnchorElement>('.handoff-actions a')?.href).toContain(
+      '/api/sessions/codex-active-id-Build%20dashboard/handoff',
+    );
   });
 
   it('renders a retry state when the API is unavailable', async () => {
@@ -125,7 +144,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.21.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -185,7 +204,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.21.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -230,7 +249,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.21.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -269,7 +288,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.21.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],
@@ -298,7 +317,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('blocked-id', 'Reviewed session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.21.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -399,7 +418,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('old-id', 'Old session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.21.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({

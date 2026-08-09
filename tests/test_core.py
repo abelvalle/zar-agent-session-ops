@@ -15,6 +15,7 @@ from zar_agent_session_ops.core import (
     archive_session,
     archive_session_reversible,
     archive_sessions,
+    base_session_handoff,
     dismiss_blocked_candidate,
     extract_transcript,
     load_sessions,
@@ -34,6 +35,32 @@ from zar_agent_session_ops.core import (
 
 
 class SessionFlowTest(unittest.TestCase):
+    def test_generates_base_handoff_without_ollama(self) -> None:
+        session = Session(
+            session_id="base-handoff",
+            agent="codex",
+            path=Path("session.jsonl"),
+            repository="D:/repo",
+            started_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+            last_activity_at=datetime(2026, 8, 2, tzinfo=timezone.utc),
+            size_bytes=100,
+            event_count=3,
+            title="Fix parser",
+            last_event_type="task_started",
+        )
+
+        handoff = base_session_handoff(
+            session,
+            "user: Fix parser\n\nassistant: Parser fixed <script>\n\nuser: Add tests",
+        )
+
+        self.assertIn("# Session handoff", handoff)
+        self.assertIn("## Objective\n\n> Fix parser", handoff)
+        self.assertIn("Parser fixed &lt;script&gt;", handoff)
+        self.assertIn("## Pending work\n\n> Add tests", handoff)
+        self.assertIn("last terminal event is `task_started`", handoff)
+        self.assertNotIn("<script>", handoff)
+
     def test_blocked_dismissal_expires_after_new_activity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
