@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.22.0` genera un
-relevo Markdown visible, copiable y descargable desde cada ficha sin requerir
-Ollama ni modificar la sesión fuente.
+sesiones locales de agentes de programación. La versión `0.23.0` permite buscar
+entre cientos de sesiones por título, repositorio, identificador, agente u
+origen y abrir directamente la ficha que interesa.
 
 ## Funciones disponibles
 
@@ -13,6 +13,8 @@ Ollama ni modificar la sesión fuente.
 - Descubre metadatos de sesiones registradas por Claude Code sin asumir que el
   proceso continúa activo.
 - Muestra estado, antigüedad, tamaño, repositorio, origen y nombre de la tarea.
+- Busca sesiones al instante por título, repositorio, identificador, agente u
+  origen y combina la consulta con los filtros de agente y estado.
 - Distingue Codex Desktop, CLI, VS Code, automatizaciones y subagentes cuando
   esos metadatos existen.
 - Guarda únicamente metadatos normalizados en SQLite.
@@ -176,8 +178,11 @@ detalle` abre metadatos, consumo de tokens, relaciones GitHub y `Relevo para
 continuar`. El relevo se renderiza en la ficha y ofrece copia y descarga
 Markdown. Para una candidata Codex directa, `Revisar y archivar`
 abre esa ficha, prepara una vista previa no destructiva y exige una confirmación
-separada. La cola conserva `Restaurar` mientras exista el recibo local. Se adapta
-a escritorio y móvil.
+separada. `Todas las sesiones` permite buscar por título, repositorio,
+identificador, agente u origen; combina la consulta con agente, estado y
+paginación, y muestra el total filtrado. Las alertas limpian una búsqueda
+incompatible antes de localizar su fila. La cola conserva `Restaurar` mientras
+exista el recibo local. Se adapta a escritorio y móvil.
 
 ## Métricas de tokens y suscripción
 

@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.22.0` generates a visible, copyable, and downloadable Markdown handoff from
-each record without requiring Ollama or changing the source session.
+`0.23.0` searches hundreds of sessions by title, repository, identifier, agent,
+or origin and opens the operational record that matters.
 
 ## Available features
 
@@ -12,6 +12,8 @@ each record without requiring Ollama or changing the source session.
 - Discovers metadata registered by Claude Code without assuming that the process
   is still active.
 - Shows status, age, size, repository, origin, and task name.
+- Searches sessions instantly by title, repository, identifier, agent, or origin
+  and combines the query with agent and status filters.
 - Distinguishes Codex Desktop, CLI, VS Code, automations, and subagents when
   those metadata are available.
 - Stores normalized metadata only in SQLite.
@@ -168,9 +170,12 @@ keeps dismissed signals visible. `View details` opens metadata, token usage,
 GitHub relationships, and `Handoff to continue`. The handoff renders in the
 record and can be copied or downloaded as Markdown.
 For an eligible direct Codex session, `Review and archive` opens that record,
-prepares a non-destructive preview, and requires a separate confirmation. The
-queue keeps `Restore` available while its local receipt exists. It adapts to
-desktop and mobile.
+prepares a non-destructive preview, and requires a separate confirmation. `All
+sessions` can search by title, repository, identifier, agent, or origin; it
+combines the query with agent, status, and pagination and shows the filtered
+total. Alerts clear an incompatible query before locating their row. The queue
+keeps `Restore` available while its local receipt exists. It adapts to desktop
+and mobile.
 
 ## Token and subscription metrics
 

@@ -179,6 +179,7 @@ export class App {
   ];
   protected readonly agentFilter = signal('all');
   protected readonly statusFilter = signal('all');
+  protected readonly searchQuery = signal('');
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(25);
   protected readonly selectedSession = signal<AgentSession | null>(null);
@@ -267,12 +268,35 @@ export class App {
   protected readonly archivedCount = computed(
     () => this.sessions().filter((session) => session.status === 'archived').length,
   );
-  protected readonly filteredSessions = computed(() =>
-    this.sessions().filter(
-      (session) =>
+  protected readonly filteredSessions = computed(() => {
+    const query = this.searchQuery().trim().toLocaleLowerCase();
+    return this.sessions().filter((session) => {
+      const matchesFilters =
         (this.agentFilter() === 'all' || session.agent === this.agentFilter()) &&
-        (this.statusFilter() === 'all' || session.status === this.statusFilter()),
-    ),
+        (this.statusFilter() === 'all' || session.status === this.statusFilter());
+      if (!matchesFilters || !query) {
+        return matchesFilters;
+      }
+      return [
+        session.title,
+        session.id,
+        session.record_key,
+        session.repository,
+        session.agent,
+        this.agentName(session.agent),
+        session.origin,
+        session.thread_source,
+      ]
+        .join(' ')
+        .toLocaleLowerCase()
+        .includes(query);
+    });
+  });
+  protected readonly hasActiveFilters = computed(
+    () =>
+      this.agentFilter() !== 'all' ||
+      this.statusFilter() !== 'all' ||
+      this.searchQuery().trim().length > 0,
   );
   protected readonly pagedSessions = computed(() => {
     const start = this.pageIndex() * this.pageSize();
@@ -383,6 +407,16 @@ export class App {
     this.pageIndex.set(0);
   }
 
+  protected setSearch(value: string): void {
+    this.locatedSession.set(null);
+    this.searchQuery.set(value);
+    this.pageIndex.set(0);
+  }
+
+  protected clearSearch(): void {
+    this.setSearch('');
+  }
+
   protected setPage(event: PageEvent): void {
     this.locatedSession.set(null);
     this.pageIndex.set(event.pageIndex);
@@ -396,6 +430,7 @@ export class App {
   protected locateSession(session: AgentSession): void {
     this.agentFilter.set(session.agent);
     this.statusFilter.set(session.status);
+    this.searchQuery.set('');
     const index = this.filteredSessions().findIndex(
       (item) =>
         item.id === session.id &&

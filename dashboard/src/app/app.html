@@ -354,9 +354,23 @@
       <div class="section-heading">
         <div>
           <h2 id="inventory-title">Todas las sesiones</h2>
-          <p>{{ filteredSessions().length }} sesiones visibles</p>
+          @if (hasActiveFilters()) {
+            <p>{{ filteredSessions().length }} de {{ sessions().length }} sesiones</p>
+          } @else {
+            <p>{{ sessions().length }} sesiones visibles</p>
+          }
         </div>
         <div class="filters" aria-label="Filtros del inventario">
+          <label class="search-filter">
+            <span>Buscar sesiones</span>
+            <input
+              type="search"
+              autocomplete="off"
+              placeholder="Título, repositorio o ID"
+              [value]="searchQuery()"
+              (input)="setSearch($any($event.target).value)"
+            />
+          </label>
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
             <mat-label>Agente</mat-label>
             <mat-select [value]="agentFilter()" (selectionChange)="setAgent($event.value)">
@@ -375,6 +389,11 @@
               <mat-option value="registered">Registradas</mat-option>
             </mat-select>
           </mat-form-field>
+          @if (searchQuery()) {
+            <button mat-stroked-button type="button" class="clear-search" (click)="clearSearch()">
+              Limpiar búsqueda
+            </button>
+          }
         </div>
       </div>
 
@@ -476,7 +495,11 @@
           ></tr>
           <tr class="mat-row empty-row" *matNoDataRow>
             <td class="mat-cell" [attr.colspan]="displayedColumns.length">
-              No hay sesiones para estos filtros.
+              @if (searchQuery().trim()) {
+                No hay sesiones que coincidan con “{{ searchQuery().trim() }}”.
+              } @else {
+                No hay sesiones para estos filtros.
+              }
             </td>
           </tr>
         </table>

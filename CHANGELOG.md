@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.23.0 - Operational session search / Búsqueda operativa de sesiones
+
+- ES: busca al instante entre las sesiones cargadas por título, repositorio,
+  identificador, agente u origen.
+- EN: instantly searches loaded sessions by title, repository, identifier,
+  agent, or origin.
+- ES: combina la consulta con agente, estado y paginación; cada cambio vuelve a
+  la primera página y muestra el total filtrado.
+- EN: combines the query with agent, status, and pagination; every change
+  returns to the first page and shows the filtered total.
+- ES: conserva `Localizar` como acción fiable, limpiando una búsqueda que
+  impediría mostrar la fila exacta.
+- EN: keeps `Locate` reliable by clearing a query that would hide the exact row.
+- Verificación / Verification: 21 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.23 validados.
+- Detalles / Details: [docs/milestones/0.23.0.md](docs/milestones/0.23.0.md).
+
 ## 0.22.0 - Visible model-free handoff / Relevo visible sin modelo
 
 - ES: genera un relevo Markdown base desde la ficha sin exigir Ollama, llamadas

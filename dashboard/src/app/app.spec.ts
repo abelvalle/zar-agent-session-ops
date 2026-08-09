@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
     http.expectOne('/api/sessions').flush({
       count: 3,
       sessions: [
@@ -47,7 +47,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.22.0');
+    expect(page.textContent).toContain('API 0.23.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -70,6 +70,19 @@ describe('App', () => {
     expect(page.querySelector<HTMLAnchorElement>('a[download]')?.href).toContain(
       '/api/reports/weekly',
     );
+
+    const search = page.querySelector<HTMLInputElement>('input[type="search"]');
+    expect(search).toBeTruthy();
+    search!.value = 'CLAUDE-ID';
+    search!.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(inventory?.textContent).toContain('1 de 3 sesiones');
+    expect(inventory?.textContent).toContain('Claude work');
+    expect(inventory?.textContent).not.toContain('Old work');
+    page.querySelector<HTMLButtonElement>('.clear-search')?.click();
+    fixture.detectChanges();
+    expect(search?.value).toBe('');
+    expect(inventory?.textContent).toContain('3 sesiones visibles');
 
     page.querySelector<HTMLButtonElement>('.details-button')?.click();
     fixture.detectChanges();
@@ -144,7 +157,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -204,7 +217,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -221,11 +234,13 @@ describe('App', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    [
-      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>(
-        '.attention-panel button',
-      ),
-    ]
+    const page = fixture.nativeElement as HTMLElement;
+    const search = page.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = 'Work 1';
+    search.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    [...page.querySelectorAll<HTMLButtonElement>('.attention-panel button')]
       .find((button) => button.textContent?.includes('Revisar señal'))
       ?.click();
     fixture.detectChanges();
@@ -237,7 +252,7 @@ describe('App', () => {
     });
     fixture.detectChanges();
 
-    const page = fixture.nativeElement as HTMLElement;
+    expect(search.value).toBe('');
     expect(page.querySelector('mat-paginator')?.textContent).toContain('26 - 26 de 26');
     expect(page.querySelector('.session-title')?.textContent).toContain('Exact blocked record');
     expect(page.querySelector('.session-row--located')).toBeTruthy();
@@ -249,7 +264,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -288,7 +303,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],
@@ -317,7 +332,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('blocked-id', 'Reviewed session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -418,7 +433,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('old-id', 'Old session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.22.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({

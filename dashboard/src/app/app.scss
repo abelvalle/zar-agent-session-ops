@@ -489,11 +489,48 @@ h3 {
 
 .filters {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
 .filters mat-form-field {
   width: 150px;
+}
+
+.search-filter {
+  display: grid;
+  width: 260px;
+  min-height: 56px;
+  padding: 7px 12px 5px;
+  border: 1px solid var(--mat-sys-outline);
+  border-radius: 4px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.search-filter:focus-within {
+  padding: 6px 11px 4px;
+  border: 2px solid var(--mat-sys-primary);
+}
+
+.search-filter span {
+  font-size: 12px;
+}
+
+.search-filter input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--mat-sys-on-surface);
+}
+
+.search-filter input::placeholder {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.clear-search {
+  white-space: nowrap;
 }
 
 .table-wrap {
