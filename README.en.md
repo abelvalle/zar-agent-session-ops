@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.20.0` completes the first dashboard lifecycle action: it previews, confirms,
-archives, and restores eligible Codex sessions without exposing source paths.
+`0.21.0` reviews, dismisses, and restores false blocked signals from the
+dashboard without changing session files.
 
 ## Available features
 
@@ -24,6 +24,8 @@ archives, and restores eligible Codex sessions without exposing source paths.
 - Consolidates weekly work, decisions, pending tasks, risks, and GitHub
   relationships through local Ollama.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
+- Dismisses false blocked signals, stores that decision in SQLite, and
+  automatically reactivates the signal after new session activity.
 - Runs scanning, policy evaluation, and reports in one schedulable cycle.
 - Exposes health, sessions, and blocked signals through a local API.
 - Shows attention signals first and keeps the full inventory as a secondary
@@ -110,7 +112,11 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `POST /api/refresh`: starts a background Codex and Claude Code scan.
 - `GET /api/sessions`: inventory with token telemetry when available and optional
   `agent` and `status` filters.
-- `GET /api/blocked`: conservative potentially blocked signal.
+- `GET /api/blocked`: active and dismissed potentially blocked signals.
+- `POST /api/sessions/{record_key}/blocked-dismissal`: dismisses a signal after
+  `NOT_BLOCKED` confirmation.
+- `POST /api/blocked-dismissals/{record_key}/restore`: restores a dismissed
+  signal.
 - `GET /api/retention`: candidate preview based on local policy.
 - `GET /api/archives`: archives with an available recovery receipt.
 - `GET /api/sessions/{record_key}/archive`: previews one archive operation.
@@ -152,9 +158,11 @@ local API, so CORS does not need to be enabled. The interface opens with an
 attention queue for potentially blocked sessions, archive candidates, and
 recoveries, explains each signal, and locates it in the filtered inventory. Its report reader
 renders Markdown headings, lists, and tables inside the page and switches between
-weekly, blocked, and inventory reports; download remains secondary. `Locate`
-moves focus to the exact row and highlights it. `View details` opens metadata,
-token usage, and GitHub relationships in a record that always provides context.
+weekly, blocked, and inventory reports; download remains secondary. `Review
+signal` moves focus to the exact row, highlights it, and opens the heuristic
+explanation. The record confirms a false positive and can undo it; the queue
+keeps dismissed signals visible. `View details` opens metadata, token usage, and
+GitHub relationships in a record that always provides context.
 For an eligible direct Codex session, `Review and archive` opens that record,
 prepares a non-destructive preview, and requires a separate confirmation. The
 queue keeps `Restore` available while its local receipt exists. It adapts to
@@ -281,6 +289,10 @@ An active Codex session is flagged only when its latest terminal event is
 `task_started`, no later completion or abort exists, and it has been inactive
 longer than `blocked_after_hours`. This is an operational signal for human
 review, not a semantic claim about the conversation.
+`Mark as not blocked` requires a separate confirmation and stores only the local
+decision; it never changes or moves the JSONL. The dismissed list keeps the
+signal available for manual restoration. If `last_activity_at` changes, the
+dismissal no longer applies and a new heuristic match requires review again.
 
 ```powershell
 python -m zar_agent_session_ops blocked --output blocked-sessions.md
@@ -402,7 +414,7 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 
 ## Next milestones
 
-- Handoff generation and false-block dismissal from the operational record.
+- Handoff generation from the operational record.
 - Claude Code history and transcripts, plus an OpenCode adapter, once real
   fixtures for those sources are available.
 - Server-side pagination and authentication when usage moves beyond loopback.

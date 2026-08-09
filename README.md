@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.20.0` completa la
-primera acción de ciclo de vida en el dashboard: previsualiza, confirma, archiva
-y restaura sesiones Codex candidatas sin exponer sus rutas.
+sesiones locales de agentes de programación. La versión `0.21.0` permite revisar,
+descartar y reactivar falsos bloqueos desde el dashboard sin modificar los
+archivos de sesión.
 
 ## Funciones disponibles
 
@@ -25,6 +25,8 @@ y restaura sesiones Codex candidatas sin exponer sus rutas.
 - Consolida trabajo, decisiones, pendientes, riesgos y relaciones GitHub de la
   semana mediante Ollama local.
 - Señala sesiones Codex potencialmente bloqueadas mediante eventos terminales.
+- Permite descartar falsos bloqueos, conserva la decisión en SQLite y reactiva
+  la señal automáticamente cuando la sesión vuelve a tener actividad.
 - Ejecuta escaneo, política e informes en un único ciclo programable.
 - Expone salud, sesiones y posibles bloqueos mediante una API local.
 - Presenta primero las señales que requieren atención y deja el inventario como
@@ -115,7 +117,11 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `POST /api/refresh`: inicia un escaneo Codex y Claude Code en segundo plano.
 - `GET /api/sessions`: inventario con telemetría de tokens cuando existe; admite
   los filtros `agent` y `status`.
-- `GET /api/blocked`: señal conservadora de posibles bloqueos.
+- `GET /api/blocked`: señales activas y descartadas de posibles bloqueos.
+- `POST /api/sessions/{record_key}/blocked-dismissal`: descarta una señal tras
+  confirmar `NOT_BLOCKED`.
+- `POST /api/blocked-dismissals/{record_key}/restore`: reactiva una señal
+  descartada.
 - `GET /api/retention`: vista previa de candidatas según la política local.
 - `GET /api/archives`: archivados con recibo de recuperación disponible.
 - `GET /api/sessions/{record_key}/archive`: previsualiza un archivado concreto.
@@ -160,7 +166,9 @@ cola de atención para posibles bloqueos, candidatas a archivo y recuperaciones,
 explica cada señal y permite localizarla en el inventario filtrado. El lector de
 informes renderiza títulos, listas y tablas del Markdown dentro de la página y
 permite alternar entre semanal, bloqueos e inventario; la descarga queda como
-acción secundaria. `Localizar` lleva el foco a la fila exacta y la resalta. `Ver
+acción secundaria. `Revisar señal` lleva el foco a la fila exacta, la resalta y
+abre la explicación de la heurística. Desde esa ficha se puede confirmar un
+falso positivo y deshacerlo; la cola conserva las señales descartadas. `Ver
 detalle` abre metadatos, consumo de tokens y relaciones GitHub en una ficha que
 siempre aporta contexto. Para una candidata Codex directa, `Revisar y archivar`
 abre esa ficha, prepara una vista previa no destructiva y exige una confirmación
@@ -292,6 +300,10 @@ Una sesión Codex activa se señala únicamente si su último evento terminal es
 `task_started`, no existe un cierre o aborto posterior y ha superado
 `blocked_after_hours` sin actividad. Es una señal operativa para revisión
 humana, no una afirmación semántica sobre el contenido de la conversación.
+`Marcar como no bloqueada` exige una confirmación separada y solo guarda la
+decisión local; no modifica ni mueve el JSONL. La señal permanece visible en la
+lista de descartadas para poder reactivarla. Si cambia `last_activity_at`, el
+descarte deja de aplicarse y una nueva coincidencia vuelve a requerir revisión.
 
 ```powershell
 python -m zar_agent_session_ops blocked --output blocked-sessions.md
@@ -415,7 +427,7 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 
 ## Próximos hitos
 
-- Generación de relevo y descarte de falsos bloqueos desde la ficha operativa.
+- Generación de relevo desde la ficha operativa.
 - Historial y transcripciones Claude Code, y adaptador OpenCode, cuando existan
   fixtures reales de esas fuentes.
 - Paginación de servidor y autenticación cuando el uso deje de ser local.

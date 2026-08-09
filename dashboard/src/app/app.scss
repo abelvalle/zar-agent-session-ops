@@ -363,6 +363,25 @@ h3 {
   margin-top: 24px;
 }
 
+.attention-dismissed {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.attention-dismissed h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.attention-dismissed > p {
+  font-size: 12px;
+}
+
+.attention-dismissed ul {
+  margin-top: 10px;
+}
+
 .reports,
 .inventory {
   overflow: hidden;

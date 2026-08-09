@@ -26,8 +26,7 @@
       <p class="page-kicker">Control local</p>
       <h1>Centro operativo de sesiones</h1>
       <p class="page-summary">
-        Atiende bloqueos y retención primero; consulta el inventario completo cuando lo
-        necesites.
+        Atiende bloqueos y retención primero; consulta el inventario completo cuando lo necesites.
       </p>
     </div>
     <div class="page-actions">
@@ -136,9 +135,8 @@
         </article>
       </div>
       <p class="usage-note">
-        La suscripción no publica una cuota fija equivalente en tokens. El porcentaje procede
-        del último evento local de Codex; los tokens son consumo acumulado registrado en cada
-        sesión.
+        La suscripción no publica una cuota fija equivalente en tokens. El porcentaje procede del
+        último evento local de Codex; los tokens son consumo acumulado registrado en cada sesión.
       </p>
     </section>
 
@@ -183,12 +181,43 @@
                     </span>
                     <span>{{ session.repository || 'Repositorio no detectado' }}</span>
                   </div>
-                  <a mat-button href="#inventory-title" (click)="locateSession(session)">
-                    Localizar
-                  </a>
+                  <button mat-button type="button" (click)="reviewBlocked(session)">
+                    Revisar señal
+                  </button>
                 </li>
               }
             </ul>
+          }
+          @if ((blocked.value()?.dismissed_count ?? 0) > 0) {
+            <div class="attention-dismissed">
+              <h4>Señales descartadas</h4>
+              <p>Reaparecen cuando la sesión cambia.</p>
+              <ul>
+                @for (session of blocked.value()?.dismissed ?? []; track session.record_key) {
+                  <li>
+                    <div>
+                      <strong>{{ session.title || 'Sin título' }}</strong>
+                      <span>
+                        Descartada: {{ session.dismissed_at | date: 'yyyy-MM-dd HH:mm' }}
+                      </span>
+                    </div>
+                    <button
+                      mat-button
+                      type="button"
+                      [disabled]="!!restoringBlockKey()"
+                      (click)="restoreBlockedDismissal(session.record_key)"
+                    >
+                      {{
+                        restoringBlockKey() === session.record_key ? 'Reactivando…' : 'Reactivar'
+                      }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+          @if (blockedRestoreError()) {
+            <p class="lifecycle-error" role="alert">{{ blockedRestoreError() }}</p>
           }
         </article>
 
@@ -245,10 +274,11 @@
                 <li>
                   <div>
                     <strong>{{ recovery.title || recovery.session_id }}</strong>
-                    <span>
-                      Archivada: {{ recovery.archived_at | date: 'yyyy-MM-dd HH:mm' }}
-                    </span>
-                    <span>{{ agentName(recovery.agent) }} · {{ formatBytes(recovery.size_bytes) }}</span>
+                    <span> Archivada: {{ recovery.archived_at | date: 'yyyy-MM-dd HH:mm' }} </span>
+                    <span
+                      >{{ agentName(recovery.agent) }} ·
+                      {{ formatBytes(recovery.size_bytes) }}</span
+                    >
                   </div>
                   <button
                     mat-button
@@ -350,8 +380,8 @@
 
       @if (locatedSession(); as located) {
         <p class="located-message" role="status">
-          <strong>Fila localizada:</strong> {{ located.title || located.id }}.
-          Está resaltada en la página actual.
+          <strong>Fila localizada:</strong> {{ located.title || located.id }}. Está resaltada en la
+          página actual.
         </p>
       }
 
@@ -473,25 +503,116 @@
         </div>
 
         <dl class="detail-grid">
-          <div><dt>Agente</dt><dd>{{ agentName(selected.agent) }}</dd></div>
-          <div><dt>Estado</dt><dd>{{ statusName(selected.status) }}</dd></div>
-          <div><dt>Origen</dt><dd>{{ selected.origin || 'No detectado' }}</dd></div>
-          <div><dt>Tipo</dt><dd>{{ selected.thread_source || 'No detectado' }}</dd></div>
-          <div><dt>Inicio</dt><dd>{{ selected.started_at | date: 'yyyy-MM-dd HH:mm' }}</dd></div>
+          <div>
+            <dt>Agente</dt>
+            <dd>{{ agentName(selected.agent) }}</dd>
+          </div>
+          <div>
+            <dt>Estado</dt>
+            <dd>{{ statusName(selected.status) }}</dd>
+          </div>
+          <div>
+            <dt>Origen</dt>
+            <dd>{{ selected.origin || 'No detectado' }}</dd>
+          </div>
+          <div>
+            <dt>Tipo</dt>
+            <dd>{{ selected.thread_source || 'No detectado' }}</dd>
+          </div>
+          <div>
+            <dt>Inicio</dt>
+            <dd>{{ selected.started_at | date: 'yyyy-MM-dd HH:mm' }}</dd>
+          </div>
           <div>
             <dt>Última actividad</dt>
             <dd>{{ selected.last_activity_at | date: 'yyyy-MM-dd HH:mm' }}</dd>
           </div>
-          <div><dt>Eventos</dt><dd>{{ selected.event_count | number: '1.0-0' }}</dd></div>
-          <div><dt>Tamaño</dt><dd>{{ formatBytes(selected.size_bytes) }}</dd></div>
+          <div>
+            <dt>Eventos</dt>
+            <dd>{{ selected.event_count | number: '1.0-0' }}</dd>
+          </div>
+          <div>
+            <dt>Tamaño</dt>
+            <dd>{{ formatBytes(selected.size_bytes) }}</dd>
+          </div>
           <div class="detail-grid__wide">
-            <dt>Repositorio</dt><dd>{{ selected.repository || 'No detectado' }}</dd>
+            <dt>Repositorio</dt>
+            <dd>{{ selected.repository || 'No detectado' }}</dd>
           </div>
           <div class="detail-grid__wide">
             <dt>Último evento terminal</dt>
             <dd>{{ selected.last_event_type || 'No disponible' }}</dd>
           </div>
         </dl>
+
+        @if (
+          isBlockedCandidate(selected) ||
+          blockReviewStatus() === 'dismissed' ||
+          blockReviewStatus() === 'restoring' ||
+          blockReviewError()
+        ) {
+          <section class="lifecycle-detail" aria-labelledby="block-review-title">
+            <div>
+              <h3 id="block-review-title">Revisión de bloqueo</h3>
+              <p>
+                Inicio de tarea sin cierre durante
+                {{ blocked.value()?.threshold_hours ?? 24 }} horas.
+              </p>
+            </div>
+
+            @if (blockReviewStatus() === 'dismissed' || blockReviewStatus() === 'restoring') {
+              <div class="lifecycle-result" role="status">
+                <strong>Señal descartada</strong>
+                <p>Ya no figura como bloqueada. Nueva actividad invalida el descarte.</p>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [disabled]="blockReviewStatus() === 'restoring'"
+                  (click)="restoreBlockedDismissal(selected.record_key, true)"
+                >
+                  {{ blockReviewStatus() === 'restoring' ? 'Reactivando…' : 'Deshacer descarte' }}
+                </button>
+              </div>
+            } @else if (
+              blockReviewStatus() === 'confirming' || blockReviewStatus() === 'dismissing'
+            ) {
+              <div class="archive-preview">
+                <p>Confirma tras revisar la sesión. Su archivo no se modifica ni se mueve.</p>
+                <div class="lifecycle-actions">
+                  <button
+                    mat-flat-button
+                    type="button"
+                    [disabled]="blockReviewStatus() === 'dismissing'"
+                    (click)="confirmBlockDismissal(selected)"
+                  >
+                    {{
+                      blockReviewStatus() === 'dismissing' ? 'Descartando…' : 'Confirmar descarte'
+                    }}
+                  </button>
+                  <button
+                    mat-button
+                    type="button"
+                    [disabled]="blockReviewStatus() === 'dismissing'"
+                    (click)="cancelBlockDismissal()"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="lifecycle-intro">
+                <p>El descarte es local y reversible.</p>
+                <button mat-stroked-button type="button" (click)="prepareBlockDismissal()">
+                  Marcar como no bloqueada
+                </button>
+              </div>
+            }
+
+            @if (blockReviewError()) {
+              <p class="lifecycle-error" role="alert">{{ blockReviewError() }}</p>
+            }
+          </section>
+        }
 
         @if (isRetentionCandidate(selected) || archiveStatus() !== 'idle' || archiveError()) {
           <section class="lifecycle-detail" aria-labelledby="lifecycle-title">
@@ -519,13 +640,22 @@
             } @else if (archivePreview(); as preview) {
               <div class="archive-preview">
                 <dl>
-                  <div><dt>Archivo</dt><dd>{{ preview.source_name }}</dd></div>
-                  <div><dt>Tamaño</dt><dd>{{ formatBytes(preview.size_bytes) }}</dd></div>
+                  <div>
+                    <dt>Archivo</dt>
+                    <dd>{{ preview.source_name }}</dd>
+                  </div>
+                  <div>
+                    <dt>Tamaño</dt>
+                    <dd>{{ formatBytes(preview.size_bytes) }}</dd>
+                  </div>
                   <div>
                     <dt>Política cumplida</dt>
                     <dd>{{ preview.archive_after_days }} días sin actividad</dd>
                   </div>
-                  <div><dt>Destino</dt><dd>{{ preview.destination_name }}</dd></div>
+                  <div>
+                    <dt>Destino</dt>
+                    <dd>{{ preview.destination_name }}</dd>
+                  </div>
                 </dl>
                 <p>
                   Confirmar moverá el archivo y lo retirará del inventario activo. Podrás
@@ -553,8 +683,8 @@
             } @else {
               <div class="lifecycle-intro">
                 <p>
-                  La previsualización no modifica archivos. Verás el nombre, tamaño y destino
-                  antes de confirmar.
+                  La previsualización no modifica archivos. Verás el nombre, tamaño y destino antes
+                  de confirmar.
                 </p>
                 <button
                   mat-stroked-button
@@ -580,12 +710,30 @@
           </div>
           @if (selected.usage; as usage) {
             <dl class="token-breakdown">
-              <div><dt>Total procesado</dt><dd>{{ formatTokens(usage.total_tokens) }}</dd></div>
-              <div><dt>Entrada no cacheada</dt><dd>{{ formatTokens(uncachedInput(usage)) }}</dd></div>
-              <div><dt>Entrada en caché</dt><dd>{{ formatTokens(usage.cached_input_tokens) }}</dd></div>
-              <div><dt>Salida</dt><dd>{{ formatTokens(usage.output_tokens) }}</dd></div>
-              <div><dt>Razonamiento</dt><dd>{{ formatTokens(usage.reasoning_output_tokens) }}</dd></div>
-              <div><dt>Ventana del modelo</dt><dd>{{ formatTokens(usage.model_context_window) }}</dd></div>
+              <div>
+                <dt>Total procesado</dt>
+                <dd>{{ formatTokens(usage.total_tokens) }}</dd>
+              </div>
+              <div>
+                <dt>Entrada no cacheada</dt>
+                <dd>{{ formatTokens(uncachedInput(usage)) }}</dd>
+              </div>
+              <div>
+                <dt>Entrada en caché</dt>
+                <dd>{{ formatTokens(usage.cached_input_tokens) }}</dd>
+              </div>
+              <div>
+                <dt>Salida</dt>
+                <dd>{{ formatTokens(usage.output_tokens) }}</dd>
+              </div>
+              <div>
+                <dt>Razonamiento</dt>
+                <dd>{{ formatTokens(usage.reasoning_output_tokens) }}</dd>
+              </div>
+              <div>
+                <dt>Ventana del modelo</dt>
+                <dd>{{ formatTokens(usage.model_context_window) }}</dd>
+              </div>
             </dl>
             <p class="token-observed">
               Observado el {{ usage.observed_at | date: 'yyyy-MM-dd HH:mm' }}.
@@ -641,6 +789,5 @@
         </section>
       </section>
     }
-
   }
 </main>

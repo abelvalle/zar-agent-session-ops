@@ -19,10 +19,12 @@ from .core import (
     DEFAULT_SOURCE,
     Policy,
     Session,
+    active_blocked_dismissals,
     archive_recoveries,
     archive_session_reversible,
     blocked_candidates,
     blocked_report,
+    dismiss_blocked_candidate,
     find_session,
     find_session_by_key,
     load_policy,
@@ -30,6 +32,7 @@ from .core import (
     markdown_report,
     policy_candidates,
     restore_archived_session,
+    restore_blocked_candidate,
     scan_claude,
     scan_codex,
     sync_sessions,
@@ -114,6 +117,37 @@ def create_app(
                 detail="Only direct Codex session files can be archived from the dashboard",
             )
         return session, policy
+
+    def blocked_state() -> tuple[Policy, list[Session], list[tuple[Session, datetime]]]:
+        policy = load_policy(config)
+        candidates = blocked_candidates(load_sessions(database), policy)
+        dismissals = active_blocked_dismissals(database, candidates)
+        visible = [
+            session for session in candidates if session_key(session) not in dismissals
+        ]
+        dismissed = [
+            (session, dismissals[session_key(session)])
+            for session in candidates
+            if session_key(session) in dismissals
+        ]
+        return policy, visible, dismissed
+
+    def blocked_candidate(record_key: str) -> Session:
+        policy = load_policy(config)
+        try:
+            session = find_session_by_key(database, record_key)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        eligible = {
+            session_key(candidate)
+            for candidate in blocked_candidates(load_sessions(database), policy)
+        }
+        if record_key not in eligible:
+            raise HTTPException(
+                status_code=409,
+                detail="Session no longer matches the blocked-session heuristic",
+            )
+        return session
 
     # ponytail: process-local state is enough for the single-worker local API.
     def run_refresh() -> None:
@@ -204,13 +238,37 @@ def create_app(
     @app.get("/blocked", include_in_schema=False)
     @app.get("/api/blocked")
     def blocked() -> dict[str, object]:
-        policy = load_policy(config)
-        items = blocked_candidates(load_sessions(database), policy)
+        policy, items, dismissed = blocked_state()
         return {
             "count": len(items),
             "threshold_hours": policy.blocked_after_hours,
             "sessions": [_session_data(item) for item in items],
+            "dismissed_count": len(dismissed),
+            "dismissed": [
+                {**_session_data(item), "dismissed_at": dismissed_at}
+                for item, dismissed_at in dismissed
+            ],
         }
+
+    @app.post("/api/sessions/{record_key}/blocked-dismissal")
+    def dismiss_blocked(
+        record_key: str,
+        confirmation: Annotated[Literal["NOT_BLOCKED"], Body(embed=True)],
+    ) -> dict[str, object]:
+        session = blocked_candidate(record_key)
+        dismissed_at = dismiss_blocked_candidate(database, session)
+        return {
+            "record_key": record_key,
+            "session_id": session.session_id,
+            "dismissed_at": dismissed_at,
+            "reactivates_on_activity": True,
+        }
+
+    @app.post("/api/blocked-dismissals/{record_key}/restore")
+    def restore_blocked(record_key: str) -> dict[str, object]:
+        if not restore_blocked_candidate(database, record_key):
+            raise HTTPException(status_code=404, detail="Blocked dismissal not found")
+        return {"record_key": record_key, "restored": True}
 
     @app.get("/api/retention")
     def retention() -> dict[str, object]:
@@ -305,7 +363,8 @@ def create_app(
         elif report_name == "weekly":
             content = weekly_report(items)
         else:
-            content = blocked_report(items, load_policy(config))
+            policy, visible, _ = blocked_state()
+            content = blocked_report(visible, policy)
         return Response(
             content=content,
             media_type="text/markdown",

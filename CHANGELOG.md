@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.21.0 - Reversible false-block dismissal / Descarte reversible de falsos bloqueos
+
+- ES: convierte cada posible bloqueo en una revisión desde la ficha y exige la
+  confirmación literal `NOT_BLOCKED` antes de ocultar la señal.
+- EN: turns each potentially blocked signal into a record review and requires
+  literal `NOT_BLOCKED` confirmation before hiding it.
+- ES: conserva descartes en SQLite, permite reactivarlos y los invalida cuando
+  la sesión registra nueva actividad.
+- EN: persists dismissals in SQLite, restores them on demand, and invalidates
+  them when the session records new activity.
+- ES: mantiene cola e informe de bloqueos coherentes sin modificar ni mover los
+  archivos de sesión.
+- EN: keeps the blocked queue and report consistent without changing or moving
+  session files.
+- Verificación / Verification: 20 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.21 validados.
+- Detalles / Details: [docs/milestones/0.21.0.md](docs/milestones/0.21.0.md).
+
 ## 0.20.0 - Confirmed reversible archiving / Archivado reversible confirmado
 
 - ES: convierte cada candidata Codex directa en un flujo progresivo de

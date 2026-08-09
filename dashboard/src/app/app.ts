@@ -49,6 +49,12 @@ interface InventoryResponse {
 
 interface BlockedResponse extends InventoryResponse {
   threshold_hours: number;
+  dismissed_count?: number;
+  dismissed?: DismissedBlockedSession[];
+}
+
+interface DismissedBlockedSession extends AgentSession {
+  dismissed_at: string;
 }
 
 interface RetentionResponse extends InventoryResponse {
@@ -129,7 +135,15 @@ interface RestoreResult {
   session: AgentSession;
 }
 
+interface BlockDismissalResult {
+  record_key: string;
+  session_id: string;
+  dismissed_at: string;
+  reactivates_on_activity: boolean;
+}
+
 type ArchiveStatus = 'idle' | 'loading' | 'preview' | 'archiving' | 'archived' | 'restoring';
+type BlockReviewStatus = 'idle' | 'confirming' | 'dismissing' | 'dismissed' | 'restoring';
 
 type ReportName = 'weekly' | 'blocked' | 'sessions';
 
@@ -173,6 +187,10 @@ export class App {
   protected readonly archivePreview = signal<ArchivePreview | null>(null);
   protected readonly archiveResult = signal<ArchiveResult | null>(null);
   protected readonly archiveError = signal<string | null>(null);
+  protected readonly blockReviewStatus = signal<BlockReviewStatus>('idle');
+  protected readonly blockReviewError = signal<string | null>(null);
+  protected readonly blockedRestoreError = signal<string | null>(null);
+  protected readonly restoringBlockKey = signal<string | null>(null);
   protected readonly restoringKey = signal<string | null>(null);
   protected readonly recoveryError = signal<string | null>(null);
   protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
@@ -186,9 +204,7 @@ export class App {
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
   protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
   protected readonly recoveries = httpResource<ArchiveRecoveryResponse>(() => '/api/archives');
-  protected readonly report = httpResource.text(
-    () => `/api/reports/${this.selectedReport()}`,
-  );
+  protected readonly report = httpResource.text(() => `/api/reports/${this.selectedReport()}`);
   protected readonly github = httpResource<GitHubResponse>(() => {
     const session = this.selectedSession();
     return session ? `/api/sessions/${encodeURIComponent(session.id)}/github` : undefined;
@@ -232,8 +248,7 @@ export class App {
   });
   protected readonly selectedReportLabel = computed(
     () =>
-      this.reportOptions.find((option) => option.id === this.selectedReport())?.label ??
-      'Informe',
+      this.reportOptions.find((option) => option.id === this.selectedReport())?.label ?? 'Informe',
   );
   protected readonly agents = computed(() =>
     [...new Set(this.sessions().map((session) => session.agent))].sort(),
@@ -392,12 +407,99 @@ export class App {
 
   protected openDetails(session: AgentSession): void {
     this.resetArchiveFlow();
+    this.resetBlockReview();
     this.selectedSession.set(session);
   }
 
   protected closeDetails(): void {
     this.resetArchiveFlow();
+    this.resetBlockReview();
     this.selectedSession.set(null);
+  }
+
+  protected reviewBlocked(session: AgentSession): void {
+    this.locateSession(session);
+    this.openDetails(session);
+    setTimeout(() => {
+      const detail = document.querySelector('.session-detail');
+      if (typeof detail?.scrollIntoView === 'function') {
+        detail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }
+
+  protected isBlockedCandidate(session: AgentSession): boolean {
+    return (this.blocked.value()?.sessions ?? []).some(
+      (candidate) => candidate.record_key === session.record_key,
+    );
+  }
+
+  protected prepareBlockDismissal(): void {
+    this.blockReviewError.set(null);
+    this.blockReviewStatus.set('confirming');
+  }
+
+  protected cancelBlockDismissal(): void {
+    this.blockReviewError.set(null);
+    this.blockReviewStatus.set('idle');
+  }
+
+  protected confirmBlockDismissal(session: AgentSession): void {
+    if (this.blockReviewStatus() !== 'confirming') {
+      return;
+    }
+    this.blockReviewError.set(null);
+    this.blockedRestoreError.set(null);
+    this.blockReviewStatus.set('dismissing');
+    this.http
+      .post<BlockDismissalResult>(`/api/sessions/${session.record_key}/blocked-dismissal`, {
+        confirmation: 'NOT_BLOCKED',
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.blockReviewStatus.set('dismissed');
+          this.reloadOperationalViews();
+        },
+        error: () => {
+          this.blockReviewError.set('No se descartó la señal. Actualiza y vuelve a revisarla.');
+          this.blockReviewStatus.set('confirming');
+        },
+      });
+  }
+
+  protected restoreBlockedDismissal(recordKey: string, fromDetail = false): void {
+    if (this.restoringBlockKey()) {
+      return;
+    }
+    this.blockReviewError.set(null);
+    this.restoringBlockKey.set(recordKey);
+    if (fromDetail) {
+      this.blockReviewStatus.set('restoring');
+    }
+    this.http
+      .post<{ record_key: string; restored: boolean }>(
+        `/api/blocked-dismissals/${recordKey}/restore`,
+        {},
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.restoringBlockKey.set(null);
+          this.blockReviewStatus.set('idle');
+          this.reloadOperationalViews();
+        },
+        error: () => {
+          this.restoringBlockKey.set(null);
+          this.blockReviewStatus.set(fromDetail ? 'dismissed' : 'idle');
+          const message = 'No se reactivó la señal. Actualiza y vuelve a intentarlo.';
+          if (fromDetail) {
+            this.blockReviewError.set(message);
+          } else {
+            this.blockedRestoreError.set(message);
+          }
+        },
+      });
   }
 
   protected reviewRetention(session: AgentSession): void {
@@ -532,6 +634,11 @@ export class App {
     this.archiveResult.set(null);
     this.archiveError.set(null);
     this.restoringKey.set(null);
+  }
+
+  private resetBlockReview(): void {
+    this.blockReviewStatus.set('idle');
+    this.blockReviewError.set(null);
   }
 
   private reloadOperationalViews(): void {

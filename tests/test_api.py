@@ -77,7 +77,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.20.0"},
+                    {"status": "ok", "version": "0.21.0"},
                     client.get("/api/health").json(),
                 )
                 inventory = client.get(
@@ -94,6 +94,37 @@ class ApiTest(unittest.TestCase):
                 blocked = client.get("/api/blocked").json()
                 self.assertEqual(1, blocked["count"])
                 self.assertEqual(24, blocked["threshold_hours"])
+                self.assertEqual(0, blocked["dismissed_count"])
+                record_key = blocked["sessions"][0]["record_key"]
+                rejected = client.post(
+                    f"/api/sessions/{record_key}/blocked-dismissal",
+                    json={"confirmation": "not_blocked"},
+                )
+                self.assertEqual(422, rejected.status_code)
+                dismissed = client.post(
+                    f"/api/sessions/{record_key}/blocked-dismissal",
+                    json={"confirmation": "NOT_BLOCKED"},
+                )
+                self.assertEqual(200, dismissed.status_code)
+                self.assertTrue(dismissed.json()["reactivates_on_activity"])
+                blocked = client.get("/api/blocked").json()
+                self.assertEqual(0, blocked["count"])
+                self.assertEqual(1, blocked["dismissed_count"])
+                self.assertEqual(record_key, blocked["dismissed"][0]["record_key"])
+                self.assertNotIn(
+                    "codex-1", client.get("/api/reports/blocked").text
+                )
+                restored = client.post(
+                    f"/api/blocked-dismissals/{record_key}/restore"
+                )
+                self.assertEqual(200, restored.status_code)
+                self.assertEqual(1, client.get("/api/blocked").json()["count"])
+                self.assertEqual(
+                    404,
+                    client.post(
+                        f"/api/blocked-dismissals/{record_key}/restore"
+                    ).status_code,
+                )
                 retention = client.get("/api/retention").json()
                 self.assertEqual(1, retention["count"])
                 self.assertEqual(30, retention["archive_after_days"])
@@ -149,9 +180,11 @@ class ApiTest(unittest.TestCase):
                         "/api/refresh",
                         "/api/sessions",
                         "/api/blocked",
+                        "/api/blocked-dismissals/{record_key}/restore",
                         "/api/archives",
                         "/api/retention",
                         "/api/sessions/{record_key}/archive",
+                        "/api/sessions/{record_key}/blocked-dismissal",
                         "/api/archives/{record_key}/restore",
                         "/api/reports/{report_name}",
                         "/api/sessions/{session_id}/github",

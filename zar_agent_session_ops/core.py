@@ -473,7 +473,21 @@ def _create_sessions_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def _create_blocked_dismissals_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS blocked_dismissals (
+            record_key TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            last_activity_at TEXT NOT NULL,
+            dismissed_at TEXT NOT NULL
+        )
+        """
+    )
+
+
 def _ensure_schema(connection: sqlite3.Connection) -> None:
+    _create_blocked_dismissals_table(connection)
     table = connection.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
     ).fetchone()
@@ -690,6 +704,63 @@ def find_session_by_key(database: Path, record_key: str) -> Session:
     if not matches:
         raise LookupError(f"Session record not found: {record_key}")
     return matches[0]
+
+
+def active_blocked_dismissals(
+    database: Path, candidates: list[Session]
+) -> dict[str, datetime]:
+    with _connect(database) as connection:
+        _ensure_schema(connection)
+        rows = connection.execute(
+            "SELECT record_key, last_activity_at, dismissed_at FROM blocked_dismissals"
+        ).fetchall()
+    stored = {
+        record_key: (last_activity_at, datetime.fromisoformat(dismissed_at))
+        for record_key, last_activity_at, dismissed_at in rows
+    }
+    return {
+        record_key: stored[record_key][1]
+        for session in candidates
+        if (record_key := session_key(session)) in stored
+        and stored[record_key][0] == session.last_activity_at.isoformat()
+    }
+
+
+def dismiss_blocked_candidate(
+    database: Path, session: Session, now: datetime | None = None
+) -> datetime:
+    dismissed_at = now or datetime.now(timezone.utc)
+    with _connect(database) as connection:
+        _ensure_schema(connection)
+        connection.execute(
+            """
+            INSERT INTO blocked_dismissals (
+                record_key, session_id, last_activity_at, dismissed_at
+            ) VALUES (?, ?, ?, ?)
+            ON CONFLICT(record_key) DO UPDATE SET
+                session_id = excluded.session_id,
+                last_activity_at = excluded.last_activity_at,
+                dismissed_at = excluded.dismissed_at
+            """,
+            (
+                session_key(session),
+                session.session_id,
+                session.last_activity_at.isoformat(),
+                dismissed_at.isoformat(),
+            ),
+        )
+    return dismissed_at
+
+
+def restore_blocked_candidate(database: Path, record_key: str) -> bool:
+    if not _valid_session_key(record_key):
+        return False
+    with _connect(database) as connection:
+        _ensure_schema(connection)
+        cursor = connection.execute(
+            "DELETE FROM blocked_dismissals WHERE record_key = ?", (record_key,)
+        )
+    return cursor.rowcount == 1
 
 
 def age_days(session: Session, now: datetime | None = None) -> int:

@@ -2,23 +2,29 @@ import json
 import io
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 from zar_agent_session_ops.core import (
     Policy,
+    Session,
+    active_blocked_dismissals,
     archive_recoveries,
     archive_session,
     archive_session_reversible,
     archive_sessions,
+    dismiss_blocked_candidate,
     extract_transcript,
     load_sessions,
     load_policy,
     markdown_report,
     policy_candidates,
     restore_archived_session,
+    restore_blocked_candidate,
     scan_codex,
+    session_key,
     session_handoff,
     summarize_with_ollama,
     sync_sessions,
@@ -28,6 +34,38 @@ from zar_agent_session_ops.core import (
 
 
 class SessionFlowTest(unittest.TestCase):
+    def test_blocked_dismissal_expires_after_new_activity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "sessions.db"
+            session = Session(
+                session_id="blocked",
+                agent="codex",
+                path=root / "blocked.jsonl",
+                repository="D:/repo",
+                started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                last_activity_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                size_bytes=100,
+                event_count=2,
+                last_event_type="task_started",
+            )
+            sync_sessions(database, [session])
+
+            dismissed_at = datetime(2026, 1, 3, tzinfo=timezone.utc)
+            dismiss_blocked_candidate(database, session, dismissed_at)
+            self.assertEqual(
+                [dismissed_at],
+                list(active_blocked_dismissals(database, [session]).values()),
+            )
+
+            changed = replace(
+                session, last_activity_at=datetime(2026, 1, 4, tzinfo=timezone.utc)
+            )
+            sync_sessions(database, [changed])
+            self.assertEqual({}, active_blocked_dismissals(database, [changed]))
+            self.assertTrue(restore_blocked_candidate(database, session_key(session)))
+            self.assertFalse(restore_blocked_candidate(database, session_key(session)))
+
     def test_scan_report_and_archive(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
