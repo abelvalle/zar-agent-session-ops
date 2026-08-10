@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.24.0 - Live local Codex limit / Límite local vigente de Codex
+
+- ES: separa el límite Codex vigente del histórico de tokens y lo obtiene del
+  último evento local válido sin reindexar el inventario completo.
+- EN: separates the current Codex limit from historical tokens and reads it from
+  the latest valid local event without reindexing the full inventory.
+- ES: muestra hora observada, antigüedad y aviso tras 15 minutos sin una
+  instantánea nueva; `Actualizar` consulta primero este dato ligero.
+- EN: shows observation time, age, and a warning after 15 minutes without a new
+  snapshot; `Refresh` checks this lightweight value first.
+- ES: añade `GET /api/usage` sin rutas fuente ni contenido de conversación.
+- EN: adds `GET /api/usage` without source paths or conversation content.
+- Verificación / Verification: 24 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.24 validados.
+- Detalles / Details: [docs/milestones/0.24.0.md](docs/milestones/0.24.0.md).
+
 ## 0.23.0 - Operational session search / Búsqueda operativa de sesiones
 
 - ES: busca al instante entre las sesiones cargadas por título, repositorio,

@@ -12,6 +12,57 @@ from zar_agent_session_ops.core import Session, TokenUsage, scan_codex, sync_ses
 
 
 class ApiTest(unittest.TestCase):
+    def test_live_usage_reads_the_latest_local_event_without_exposing_its_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            session_id = "019fcc83-61e6-7aa0-b008-7eb5bc44ca08"
+            session_path = root / "sessions" / "2026" / "08" / "10" / f"rollout-{session_id}.jsonl"
+            session_path.parent.mkdir(parents=True)
+            observed_at = datetime.now(timezone.utc)
+            session_path.write_text(
+                json.dumps(
+                    {
+                        "timestamp": observed_at.isoformat(),
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "token_count",
+                            "info": {
+                                "total_token_usage": {
+                                    "input_tokens": 2000,
+                                    "cached_input_tokens": 1500,
+                                    "output_tokens": 500,
+                                    "total_tokens": 2500,
+                                },
+                                "model_context_window": 258400,
+                            },
+                            "rate_limits": {
+                                "primary": {
+                                    "used_percent": 96,
+                                    "window_minutes": 10080,
+                                    "resets_at": 1786834783,
+                                }
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with TestClient(
+                create_app(root / "sessions.db", root / "config.toml", root)
+            ) as client:
+                response = client.get("/api/usage")
+
+            self.assertEqual(200, response.status_code)
+            payload = response.json()
+            self.assertEqual("available", payload["status"])
+            self.assertEqual(session_id, payload["session_id"])
+            self.assertEqual(96.0, payload["usage"]["rate_limit_used_percent"])
+            self.assertEqual(10_080, payload["usage"]["rate_limit_window_minutes"])
+            self.assertFalse(payload["stale"])
+            self.assertLess(payload["age_seconds"], 10)
+            self.assertNotIn(str(root), response.text)
+
     def test_inventory_and_github_endpoints(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -77,9 +128,10 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.23.0"},
+                    {"status": "ok", "version": "0.24.0"},
                     client.get("/api/health").json(),
                 )
+                self.assertEqual("unavailable", client.get("/api/usage").json()["status"])
                 inventory = client.get(
                     "/api/sessions?agent=codex&status=active"
                 ).json()
@@ -192,6 +244,7 @@ class ApiTest(unittest.TestCase):
                     {
                         "/api/health",
                         "/api/refresh",
+                        "/api/usage",
                         "/api/sessions",
                         "/api/sessions/{record_key}/handoff",
                         "/api/blocked",

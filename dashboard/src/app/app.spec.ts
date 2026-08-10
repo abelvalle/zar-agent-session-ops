@@ -20,7 +20,8 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({
       count: 3,
       sessions: [
@@ -47,7 +48,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.23.0');
+    expect(page.textContent).toContain('API 0.24.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -66,7 +67,9 @@ describe('App', () => {
     expect(page.textContent).toContain('Weekly report');
     expect(page.querySelector('.report-content h1')?.textContent).toContain('Weekly report');
     expect(page.textContent).toContain('Consumo de Codex');
-    expect(page.textContent).toContain('84%');
+    expect(page.textContent).toContain('4%');
+    expect(page.textContent).toContain('96% consumido');
+    expect(page.textContent).toContain('hace menos de un minuto');
     expect(page.querySelector<HTMLAnchorElement>('a[download]')?.href).toContain(
       '/api/reports/weekly',
     );
@@ -135,6 +138,7 @@ describe('App', () => {
 
     for (const url of [
       '/api/health',
+      '/api/usage',
       '/api/sessions',
       '/api/blocked',
       '/api/retention',
@@ -157,7 +161,8 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/usage').flush(liveUsage(true, 3600));
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -174,6 +179,8 @@ describe('App', () => {
 
     const page = fixture.nativeElement as HTMLElement;
     expect(page.textContent).toContain('No se pudo cargar el informe');
+    expect(page.textContent).toContain('Dato obsoleto');
+    expect(page.textContent).toContain('hace 1 hora');
     page.querySelector<HTMLButtonElement>('.report-retry')?.click();
     await new Promise((resolve) => setTimeout(resolve));
     http
@@ -217,7 +224,8 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -264,7 +272,8 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -281,6 +290,8 @@ describe('App', () => {
     [...page.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent?.includes('Actualizar'))
       ?.click();
+    await new Promise((resolve) => setTimeout(resolve));
+    http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/refresh').flush({
       status: 'running',
       count: null,
@@ -303,7 +314,8 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],
@@ -332,7 +344,8 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('blocked-id', 'Reviewed session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({
       count: 1,
@@ -433,7 +446,8 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('old-id', 'Old session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.23.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -581,5 +595,28 @@ function session(id: string, title: string, status: string, agent = 'codex') {
             rate_limit_resets_at: '2026-08-11T09:00:00Z',
           }
         : null,
+  };
+}
+
+function liveUsage(stale = false, ageSeconds = 45) {
+  return {
+    status: 'available',
+    source: 'latest_local_codex_event',
+    session_id: '019fcc83-61e6-7aa0-b008-7eb5bc44ca08',
+    observed_at: '2026-08-10T14:17:52Z',
+    age_seconds: ageSeconds,
+    stale,
+    usage: {
+      observed_at: '2026-08-10T14:17:52Z',
+      input_tokens: 2000,
+      cached_input_tokens: 1500,
+      output_tokens: 500,
+      reasoning_output_tokens: 100,
+      total_tokens: 2500,
+      model_context_window: 258400,
+      rate_limit_used_percent: 96,
+      rate_limit_window_minutes: 10080,
+      rate_limit_resets_at: '2026-08-15T22:59:43Z',
+    },
   };
 }

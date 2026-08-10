@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.23.0` permite buscar
-entre cientos de sesiones por título, repositorio, identificador, agente u
-origen y abrir directamente la ficha que interesa.
+sesiones locales de agentes de programación. La versión `0.24.0` muestra el
+límite semanal de Codex desde su último evento local, indica cuándo se observó y
+lo mantiene separado del histórico de tokens por sesión.
 
 ## Funciones disponibles
 
@@ -22,8 +22,9 @@ origen y abrir directamente la ficha que interesa.
 - Renderiza inventario, actividad semanal y posibles bloqueos como HTML legible
   dentro del dashboard; la descarga Markdown continúa siendo opcional.
 - Extrae tokens de entrada, caché, salida y razonamiento registrados por Codex.
-- Muestra el consumo acumulado por sesión y la última ventana de suscripción
-  observada, con porcentaje disponible y fecha de reinicio.
+- Muestra el consumo acumulado por sesión y el último límite Codex observado,
+  con porcentaje disponible, fecha de reinicio, antigüedad y aviso de dato
+  obsoleto.
 - Consolida trabajo, decisiones, pendientes, riesgos y relaciones GitHub de la
   semana mediante Ollama local.
 - Señala sesiones Codex potencialmente bloqueadas mediante eventos terminales.
@@ -105,7 +106,8 @@ define `ZAR_DASHBOARD_PORT` antes de levantar el stack. `GITHUB_TOKEN` también
 es opcional; Compose lo transmite al entorno de la API y la aplicación no lo
 guarda.
 
-El botón `Actualizar` inicia un nuevo escaneo en segundo plano. Codex reutiliza
+El botón `Actualizar` consulta inmediatamente el último límite local de Codex e
+inicia un nuevo escaneo en segundo plano. Codex reutiliza
 los metadatos de JSONL cuyo tamaño y estado no han cambiado y vuelve a leer los
 archivos nuevos, modificados o movidos. Al terminar, la web muestra duración,
 cambios y reutilizaciones. La API continúa respondiendo durante el trabajo y
@@ -118,6 +120,8 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `GET /api/health`: estado y versión.
 - `GET /api/refresh`: estado del último escaneo solicitado.
 - `POST /api/refresh`: inicia un escaneo Codex y Claude Code en segundo plano.
+- `GET /api/usage`: última instantánea local del límite Codex, su antigüedad y
+  estado de obsolescencia; no reindexa el inventario ni expone rutas.
 - `GET /api/sessions`: inventario con telemetría de tokens cuando existe; admite
   los filtros `agent` y `status`.
 - `GET /api/sessions/{record_key}/handoff`: relevo Markdown base de la sesión
@@ -192,12 +196,19 @@ en caché, salida, razonamiento, total procesado y ventana de contexto. El escan
 la conversación. La primera actualización tras migrar vuelve a leer una vez los
 JSONL existentes y las siguientes recuperan el escaneo incremental.
 
-La interfaz deduplica por identificador de sesión para el total histórico y toma
-el evento más reciente para mostrar el porcentaje usado, el disponible y el
-reinicio de la ventana Codex. Ese porcentaje es una instantánea local, no una
-consulta en tiempo real a la cuenta. ChatGPT Work y Codex comparten uso, créditos
-y límites, pero OpenAI no publica una cuota fija de suscripción convertible a un
-número total de tokens. Claude Code, ChatGPT importado y sesiones antiguas pueden
+La interfaz deduplica por identificador de sesión para el total histórico. El
+porcentaje usado, el disponible y el reinicio se leen aparte mediante
+`GET /api/usage`, que recorre hacia atrás los JSONL más recientes hasta encontrar
+la última instantánea válida. La hora observada siempre es visible y, tras 15
+minutos sin una observación nueva, la interfaz la marca como obsoleta. `Actualizar`
+recarga este dato de forma ligera antes de completar el escaneo general.
+
+Ese porcentaje sigue siendo una observación local, no una consulta autenticada
+a la cuenta. La [documentación oficial de Codex](https://learn.chatgpt.com/docs/pricing)
+indica que los límites vigentes se consultan en el panel de uso o con `/status`
+y que pueden aplicarse límites semanales. ChatGPT Work y Codex comparten uso,
+créditos y límites, pero no existe una cuota fija de suscripción convertible a
+un total de tokens. Claude Code, ChatGPT importado y sesiones antiguas pueden
 mostrar `No disponible` cuando su fuente no contiene estos eventos.
 
 ## Relaciones con GitHub

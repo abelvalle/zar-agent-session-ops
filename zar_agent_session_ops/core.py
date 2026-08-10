@@ -40,6 +40,12 @@ class TokenUsage:
 
 
 @dataclass(frozen=True)
+class LatestCodexUsage:
+    session_id: str
+    usage: TokenUsage
+
+
+@dataclass(frozen=True)
 class Session:
     session_id: str
     agent: str
@@ -133,6 +139,61 @@ def _token_usage(payload: dict[str, object], observed_at: datetime) -> TokenUsag
         rate_limit_window_minutes=window_minutes,
         rate_limit_resets_at=resets_at,
     )
+
+
+def _reverse_lines(path: Path, chunk_size: int = 64 * 1024):
+    with path.open("rb") as stream:
+        position = stream.seek(0, os.SEEK_END)
+        remainder = b""
+        while position > 0:
+            size = min(chunk_size, position)
+            position -= size
+            stream.seek(position)
+            block = stream.read(size) + remainder
+            lines = block.split(b"\n")
+            remainder = lines[0]
+            for line in reversed(lines[1:]):
+                if line:
+                    yield line.decode("utf-8", errors="replace")
+        if remainder:
+            yield remainder.decode("utf-8", errors="replace")
+
+
+def latest_codex_usage(source: Path = DEFAULT_SOURCE) -> LatestCodexUsage | None:
+    sessions_dir = source / "sessions"
+    if not sessions_dir.is_dir():
+        return None
+
+    paths = sorted(
+        sessions_dir.rglob("*.jsonl"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in paths:
+        modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        for line in _reverse_lines(path):
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(item, dict) or item.get("type") != "event_msg":
+                continue
+            payload = item.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            usage = _token_usage(payload, _timestamp(item.get("timestamp"), modified))
+            if usage is None or usage.rate_limit_used_percent is None:
+                continue
+            session_match = re.search(
+                r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
+                path.stem,
+                re.IGNORECASE,
+            )
+            return LatestCodexUsage(
+                session_id=session_match.group(1) if session_match else path.stem,
+                usage=usage,
+            )
+    return None
 
 
 def load_session_titles(path: Path) -> dict[str, str]:

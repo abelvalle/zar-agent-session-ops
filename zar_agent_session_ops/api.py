@@ -19,6 +19,7 @@ from .core import (
     DEFAULT_SOURCE,
     Policy,
     Session,
+    TokenUsage,
     active_blocked_dismissals,
     archive_recoveries,
     archive_session_reversible,
@@ -31,6 +32,7 @@ from .core import (
     find_session_by_key,
     load_policy,
     load_sessions,
+    latest_codex_usage,
     markdown_report,
     policy_candidates,
     restore_archived_session,
@@ -45,6 +47,22 @@ from .github import session_github_references
 
 
 LOGGER = logging.getLogger(__name__)
+USAGE_STALE_AFTER_SECONDS = 15 * 60
+
+
+def _usage_data(usage: TokenUsage) -> dict[str, object]:
+    return {
+        "observed_at": usage.observed_at,
+        "input_tokens": usage.input_tokens,
+        "cached_input_tokens": usage.cached_input_tokens,
+        "output_tokens": usage.output_tokens,
+        "reasoning_output_tokens": usage.reasoning_output_tokens,
+        "total_tokens": usage.total_tokens,
+        "model_context_window": usage.model_context_window,
+        "rate_limit_used_percent": usage.rate_limit_used_percent,
+        "rate_limit_window_minutes": usage.rate_limit_window_minutes,
+        "rate_limit_resets_at": usage.rate_limit_resets_at,
+    }
 
 
 def _session_data(session: Session) -> dict[str, object]:
@@ -62,18 +80,7 @@ def _session_data(session: Session) -> dict[str, object]:
         "origin": session.origin,
         "thread_source": session.thread_source,
         "last_event_type": session.last_event_type,
-        "usage": {
-            "observed_at": session.usage.observed_at,
-            "input_tokens": session.usage.input_tokens,
-            "cached_input_tokens": session.usage.cached_input_tokens,
-            "output_tokens": session.usage.output_tokens,
-            "reasoning_output_tokens": session.usage.reasoning_output_tokens,
-            "total_tokens": session.usage.total_tokens,
-            "model_context_window": session.usage.model_context_window,
-            "rate_limit_used_percent": session.usage.rate_limit_used_percent,
-            "rate_limit_window_minutes": session.usage.rate_limit_window_minutes,
-            "rate_limit_resets_at": session.usage.rate_limit_resets_at,
-        }
+        "usage": _usage_data(session.usage)
         if session.usage
         else None,
     }
@@ -204,6 +211,33 @@ def create_app(
     def refresh_status() -> dict[str, object]:
         with refresh_lock:
             return dict(refresh_state)
+
+    @app.get("/api/usage")
+    def usage() -> dict[str, object]:
+        snapshot = latest_codex_usage(source)
+        if snapshot is None:
+            return {
+                "status": "unavailable",
+                "source": "latest_local_codex_event",
+                "session_id": None,
+                "observed_at": None,
+                "age_seconds": None,
+                "stale": True,
+                "usage": None,
+            }
+        age_seconds = max(
+            0,
+            int((datetime.now(timezone.utc) - snapshot.usage.observed_at).total_seconds()),
+        )
+        return {
+            "status": "available",
+            "source": "latest_local_codex_event",
+            "session_id": snapshot.session_id,
+            "observed_at": snapshot.usage.observed_at,
+            "age_seconds": age_seconds,
+            "stale": age_seconds > USAGE_STALE_AFTER_SECONDS,
+            "usage": _usage_data(snapshot.usage),
+        }
 
     @app.post("/api/refresh", status_code=202)
     def refresh(background_tasks: BackgroundTasks) -> dict[str, object]:

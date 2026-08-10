@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ from unittest.mock import patch
 from zar_agent_session_ops.core import (
     Policy,
     load_sessions,
+    latest_codex_usage,
     policy_candidates,
     read_codex_session,
     scan_codex,
@@ -18,6 +20,74 @@ from zar_agent_session_ops.core import (
 
 
 class CodexInventoryTest(unittest.TestCase):
+    def test_reads_latest_rate_limit_without_scanning_the_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sessions_dir = root / "sessions" / "2026" / "08" / "10"
+            sessions_dir.mkdir(parents=True)
+            valid = sessions_dir / (
+                "rollout-2026-08-10T10-00-00-"
+                "019fcc83-61e6-7aa0-b008-7eb5bc44ca08.jsonl"
+            )
+            self._session(valid, "ignored-meta-id", "Codex Desktop", "user")
+            with valid.open("a", encoding="utf-8") as stream:
+                stream.write(
+                    "\n"
+                    + json.dumps(
+                        {
+                            "timestamp": "2026-08-10T14:17:52Z",
+                            "type": "event_msg",
+                            "payload": {
+                                "type": "token_count",
+                                "info": {
+                                    "total_token_usage": {
+                                        "input_tokens": 2000,
+                                        "cached_input_tokens": 1500,
+                                        "output_tokens": 500,
+                                        "total_tokens": 2500,
+                                    },
+                                    "model_context_window": 258400,
+                                },
+                                "rate_limits": {
+                                    "primary": {
+                                        "used_percent": 96,
+                                        "window_minutes": 10080,
+                                        "resets_at": 1786834783,
+                                    }
+                                },
+                            },
+                        }
+                    )
+                )
+            irrelevant = sessions_dir / "newer-without-usage.jsonl"
+            irrelevant.write_text(
+                json.dumps(
+                    {
+                        "timestamp": "2026-08-10T14:18:00Z",
+                        "type": "event_msg",
+                        "payload": {"type": "task_started"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            valid_mtime = valid.stat().st_mtime
+            os.utime(irrelevant, (valid_mtime + 1, valid_mtime + 1))
+
+            snapshot = latest_codex_usage(root)
+
+            self.assertIsNotNone(snapshot)
+            assert snapshot is not None
+            self.assertEqual(
+                "019fcc83-61e6-7aa0-b008-7eb5bc44ca08", snapshot.session_id
+            )
+            self.assertEqual(96.0, snapshot.usage.rate_limit_used_percent)
+            self.assertEqual(10_080, snapshot.usage.rate_limit_window_minutes)
+            self.assertEqual(2500, snapshot.usage.total_tokens)
+
+    def test_latest_rate_limit_is_unavailable_without_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertIsNone(latest_codex_usage(Path(directory)))
+
     def test_scans_active_archived_titles_and_origins(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

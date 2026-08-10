@@ -82,34 +82,53 @@
       <div class="section-heading usage-heading">
         <div>
           <h2 id="usage-title">Consumo de Codex</h2>
-          <p>Tokens registrados por sesión y estado de la última ventana de uso observada.</p>
+          <p>Límite vigente observado y tokens históricos registrados por sesión.</p>
         </div>
         <span>{{ usageSummary().sessionCount }} sesiones con métricas</span>
       </div>
       <div class="usage-columns">
         <article class="usage-limit">
-          @if (usageSummary().latest; as usage) {
-            <div class="usage-limit__value">
-              <div>
-                <span>Disponible en la ventana</span>
-                <strong>{{ availablePercent(usage) | number: '1.0-1' }}%</strong>
+          @if (liveUsage.value(); as live) {
+            @if (live.usage; as usage) {
+              <div class="usage-limit__value">
+                <div>
+                  <span>Disponible en la ventana</span>
+                  <strong>{{ availablePercent(usage) | number: '1.0-1' }}%</strong>
+                </div>
+                <span>{{ usage.rate_limit_used_percent | number: '1.0-1' }}% consumido</span>
               </div>
-              <span>{{ usage.rate_limit_used_percent | number: '1.0-1' }}% consumido</span>
-            </div>
-            <mat-progress-bar
-              mode="determinate"
-              [value]="usage.rate_limit_used_percent ?? 0"
-              aria-label="Porcentaje consumido de la ventana Codex"
-            />
-            <p>
-              Ventana de {{ formatWindow(usage.rate_limit_window_minutes) }}.
-              @if (usage.rate_limit_resets_at) {
-                Reinicia el {{ usage.rate_limit_resets_at | date: 'yyyy-MM-dd HH:mm' }}.
+              <mat-progress-bar
+                mode="determinate"
+                [value]="usage.rate_limit_used_percent ?? 0"
+                aria-label="Porcentaje consumido de la ventana Codex"
+              />
+              <p>
+                Ventana de {{ formatWindow(usage.rate_limit_window_minutes) }}.
+                @if (usage.rate_limit_resets_at) {
+                  Reinicia el {{ usage.rate_limit_resets_at | date: 'yyyy-MM-dd HH:mm' }}.
+                }
+              </p>
+              <p class="usage-observation" [class.refresh-error]="live.stale">
+                @if (live.stale) {
+                  <strong>Dato obsoleto.</strong>
+                }
+                Última lectura local:
+                {{ live.observed_at | date: 'yyyy-MM-dd HH:mm:ss' }}
+                ({{ formatAge(live.age_seconds) }}).
+              </p>
+              @if (live.stale) {
+                <p class="refresh-error">
+                  Continúa una tarea de Codex y pulsa Actualizar para obtener una observación nueva.
+                </p>
               }
-            </p>
+            } @else {
+              <p class="usage-empty">
+                Codex todavía no ha emitido una instantánea local de su límite.
+              </p>
+            }
           } @else {
             <p class="usage-empty">
-              Todavía no hay una instantánea de límite en las sesiones indexadas.
+              No se pudo consultar ahora la última instantánea local de Codex.
             </p>
           }
         </article>
@@ -135,8 +154,9 @@
         </article>
       </div>
       <p class="usage-note">
-        La suscripción no publica una cuota fija equivalente en tokens. El porcentaje procede del
-        último evento local de Codex; los tokens son consumo acumulado registrado en cada sesión.
+        El porcentaje procede del último evento local emitido por Codex y puede quedar obsoleto si
+        no hay actividad. Los tokens son un histórico acumulado; no equivalen a la cuota de la
+        suscripción.
       </p>
     </section>
 

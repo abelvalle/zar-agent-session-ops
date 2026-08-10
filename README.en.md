@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.23.0` searches hundreds of sessions by title, repository, identifier, agent,
-or origin and opens the operational record that matters.
+`0.24.0` shows the Codex weekly limit from its latest local event, states when
+it was observed, and keeps it separate from per-session historical tokens.
 
 ## Available features
 
@@ -21,8 +21,8 @@ or origin and opens the operational record that matters.
 - Renders inventory, weekly activity, and blocked signals as readable HTML
   inside the dashboard; Markdown download remains optional.
 - Extracts Codex-recorded input, cached input, output, and reasoning tokens.
-- Shows cumulative usage per session and the latest observed subscription
-  window, including available percentage and reset time.
+- Shows cumulative usage per session and the latest observed Codex limit,
+  including available percentage, reset time, age, and a stale-data warning.
 - Consolidates weekly work, decisions, pending tasks, risks, and GitHub
   relationships through local Ollama.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
@@ -101,7 +101,8 @@ docker compose down
 startup to choose another loopback port. `GITHUB_TOKEN` is optional; Compose
 passes it into the API environment and the application does not store it.
 
-The `Refresh` button starts a new background scan. Codex metadata is reused for
+The `Refresh` button immediately checks the latest local Codex limit and starts
+a new background scan. Codex metadata is reused for
 JSONL files whose size and status have not changed; new, changed, or moved files
 are read again. The UI then reports duration, changes, and reused records. The
 API remains responsive and prevents two scans from running at the same time.
@@ -113,6 +114,8 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `GET /api/health`: status and version.
 - `GET /api/refresh`: state of the latest requested scan.
 - `POST /api/refresh`: starts a background Codex and Claude Code scan.
+- `GET /api/usage`: latest local Codex limit snapshot, its age, and stale state;
+  it neither reindexes the inventory nor exposes paths.
 - `GET /api/sessions`: inventory with token telemetry when available and optional
   `agent` and `status` filters.
 - `GET /api/sessions/{record_key}/handoff`: base Markdown handoff for the exact
@@ -185,13 +188,20 @@ stores only those counters and timestamps in SQLite; it adds no conversation
 content. The first refresh after migration reads existing JSONL files once, then
 subsequent refreshes return to incremental scanning.
 
-The UI deduplicates by session identifier for historical totals and uses the
-latest event to show the used percentage, available percentage, and Codex window
-reset. That percentage is a local snapshot, not a live account query. ChatGPT
-Work and Codex share usage, credits, and limits, but OpenAI does not publish a
-fixed subscription allowance that can be converted into a total token count.
-Claude Code, imported ChatGPT, and older sessions can show `Unavailable` when
-their source has no such events.
+The UI deduplicates by session identifier for historical totals. Used and
+available percentages and reset time are read separately through
+`GET /api/usage`, which walks recent JSONL files backwards until it finds the
+latest valid snapshot. The observation time is always visible, and the UI marks
+it stale after 15 minutes without a newer observation. `Refresh` reloads this
+lightweight value before the full inventory scan completes.
+
+That percentage remains a local observation, not an authenticated account
+query. The [official Codex documentation](https://learn.chatgpt.com/docs/pricing)
+says current limits are available in the usage dashboard or through `/status`
+and that additional weekly limits may apply. ChatGPT Work and Codex share usage,
+credits, and limits, but there is no fixed subscription allowance convertible
+to a total token count. Claude Code, imported ChatGPT, and older sessions can
+show `Unavailable` when their source has no such events.
 
 ## GitHub relationships
 

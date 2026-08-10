@@ -47,6 +47,16 @@ interface InventoryResponse {
   sessions: AgentSession[];
 }
 
+interface LiveUsageResponse {
+  status: 'available' | 'unavailable';
+  source: 'latest_local_codex_event';
+  session_id: string | null;
+  observed_at: string | null;
+  age_seconds: number | null;
+  stale: boolean;
+  usage: TokenUsage | null;
+}
+
 interface BlockedResponse extends InventoryResponse {
   threshold_hours: number;
   dismissed_count?: number;
@@ -206,6 +216,7 @@ export class App {
   ];
   protected readonly selectedReport = signal<ReportName>('weekly');
   protected readonly health = httpResource<HealthResponse>(() => '/api/health');
+  protected readonly liveUsage = httpResource<LiveUsageResponse>(() => '/api/usage');
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
   protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
@@ -235,11 +246,6 @@ export class App {
       }
     }
     const items = [...unique.values()];
-    const latest = items
-      .filter((session) => session.usage?.rate_limit_used_percent !== null)
-      .sort((left, right) =>
-        (right.usage?.observed_at ?? '').localeCompare(left.usage?.observed_at ?? ''),
-      )[0]?.usage;
     return {
       sessionCount: items.length,
       inputTokens: items.reduce((total, session) => total + (session.usage?.input_tokens ?? 0), 0),
@@ -252,7 +258,6 @@ export class App {
         0,
       ),
       totalTokens: items.reduce((total, session) => total + (session.usage?.total_tokens ?? 0), 0),
-      latest,
     };
   });
   protected readonly selectedReportLabel = computed(
@@ -306,6 +311,7 @@ export class App {
     () =>
       this.refreshState()?.status === 'running' ||
       this.health.isLoading() ||
+      this.liveUsage.isLoading() ||
       this.inventory.isLoading() ||
       this.blocked.isLoading() ||
       this.retention.isLoading() ||
@@ -326,6 +332,7 @@ export class App {
     if (this.refreshState()?.status === 'running') {
       return;
     }
+    this.liveUsage.reload();
     this.refreshState.set({
       status: 'running',
       count: null,
@@ -372,6 +379,7 @@ export class App {
 
   protected reloadViews(): void {
     this.health.reload();
+    this.liveUsage.reload();
     this.inventory.reload();
     this.blocked.reload();
     this.retention.reload();
@@ -845,5 +853,20 @@ export class App {
       return `${days} ${days === 1 ? 'día' : 'días'}`;
     }
     return `${minutes} min`;
+  }
+
+  protected formatAge(seconds: number | null): string {
+    if (seconds === null) {
+      return 'sin hora disponible';
+    }
+    if (seconds < 60) {
+      return 'hace menos de un minuto';
+    }
+    if (seconds < 60 * 60) {
+      const minutes = Math.floor(seconds / 60);
+      return `hace ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+    }
+    const hours = Math.floor(seconds / (60 * 60));
+    return `hace ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
   }
 }
