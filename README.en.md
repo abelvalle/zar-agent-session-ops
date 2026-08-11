@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.24.0` shows the Codex weekly limit from its latest local event, states when
-it was observed, and keeps it separate from per-session historical tokens.
+`0.25.0` turns each record into an actionable reading: objective, latest
+outcome, pending request, recent activity, and next step from local evidence.
 
 ## Available features
 
@@ -36,6 +36,8 @@ it was observed, and keeps it separate from per-session historical tokens.
   keeps that row highlighted.
 - Opens an operational record with origin, type, events, size, token usage, and
   GitHub relationships; the record remains useful when no GitHub links exist.
+- Reads up to six recent excerpts on demand and shows objective, latest outcome,
+  pending request, and next action without storing the transcript.
 - Resolves explicit GitHub Issue, Pull Request, and commit links.
 - Summarizes a session with a local Ollama model.
 - Generates a base Markdown handoff from any record using metadata and bounded
@@ -118,6 +120,8 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
   it neither reindexes the inventory nor exposes paths.
 - `GET /api/sessions`: inventory with token telemetry when available and optional
   `agent` and `status` filters.
+- `GET /api/sessions/{record_key}/activity`: bounded activity record for the
+  exact session, without source paths or message persistence.
 - `GET /api/sessions/{record_key}/handoff`: base Markdown handoff for the exact
   session, without source paths or an Ollama dependency.
 - `GET /api/blocked`: active and dismissed potentially blocked signals.
@@ -411,6 +415,8 @@ complete original transcript instead of reducing context.
 - `maintain` also requires `--apply-policy` before files can move.
 - The dashboard's base handoff stays inside the local API. Summaries, enriched
   CLI handoffs, and operational digests are sent only to local Ollama.
+- The activity record is computed on demand, caps each excerpt at 500
+  characters, and does not store its content in SQLite.
 - Under Compose, Claude Code remains read-only. Codex is writable only so the API
   can perform confirmed archive and restore operations; the API runs as UID
   10001, and only the dashboard publishes a port bound to `127.0.0.1`.

@@ -39,6 +39,7 @@ from .core import (
     restore_blocked_candidate,
     scan_claude,
     scan_codex,
+    session_activity,
     sync_sessions,
     session_key,
     weekly_report,
@@ -305,6 +306,20 @@ def create_app(
                 "Content-Disposition": 'inline; filename="session-handoff.md"'
             },
         )
+
+    @app.get("/api/sessions/{record_key}/activity")
+    def activity(record_key: str) -> dict[str, object]:
+        try:
+            session = find_session_by_key(database, record_key)
+            transcript = extract_session_transcript(session)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (FileNotFoundError, OSError, ValueError) as error:
+            raise HTTPException(
+                status_code=422,
+                detail="Activity source is unavailable; refresh the inventory and try again",
+            ) from error
+        return session_activity(session, transcript)
 
     @app.post("/api/sessions/{record_key}/blocked-dismissal")
     def dismiss_blocked(

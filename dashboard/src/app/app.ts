@@ -104,6 +104,15 @@ interface GitHubResponse {
   references: GitHubReference[];
 }
 
+interface SessionActivity {
+  objective: string;
+  latest_outcome: string | null;
+  pending_request: string | null;
+  next_action: 'respond_to_pending_request' | 'review_active_task' | 'verify_repository_state';
+  recent_activity: Array<{ role: 'user' | 'assistant'; text: string }>;
+  evidence: 'local_transcript_and_lifecycle_metadata';
+}
+
 interface ArchivePreview {
   record_key: string;
   session_id: string;
@@ -225,6 +234,10 @@ export class App {
   protected readonly github = httpResource<GitHubResponse>(() => {
     const session = this.selectedSession();
     return session ? `/api/sessions/${encodeURIComponent(session.id)}/github` : undefined;
+  });
+  protected readonly activity = httpResource<SessionActivity>(() => {
+    const session = this.selectedSession();
+    return session ? `/api/sessions/${encodeURIComponent(session.record_key)}/activity` : undefined;
   });
 
   protected readonly sessions = computed(() => this.inventory.value()?.sessions ?? []);
@@ -518,6 +531,20 @@ export class App {
 
   protected handoffUrl(session: AgentSession): string {
     return `/api/sessions/${session.record_key}/handoff`;
+  }
+
+  protected activityRole(role: 'user' | 'assistant'): string {
+    return role === 'user' ? 'Petición' : 'Respuesta';
+  }
+
+  protected nextActionLabel(action: SessionActivity['next_action']): string {
+    if (action === 'respond_to_pending_request') {
+      return 'Responder a la última petición pendiente.';
+    }
+    if (action === 'review_active_task') {
+      return 'Comprobar si la tarea sigue activa o necesita un relevo.';
+    }
+    return 'Verificar el estado actual del repositorio antes de continuar o archivar.';
   }
 
   protected reviewBlocked(session: AgentSession): void {

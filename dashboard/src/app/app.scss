@@ -711,6 +711,7 @@ mat-paginator {
   font-weight: 650;
 }
 
+.activity-detail,
 .handoff-detail {
   padding: 24px;
   border-bottom: 1px solid var(--mat-sys-outline-variant);
@@ -724,15 +725,71 @@ mat-paginator {
   gap: 20px;
 }
 
+.activity-heading h3,
+.activity-heading p,
 .handoff-heading h3,
 .handoff-heading p {
   margin-bottom: 0;
 }
 
+.activity-heading p,
 .handoff-heading p,
 .handoff-actions span {
   color: var(--mat-sys-on-surface-variant);
   font-size: 12px;
+}
+
+.activity-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+  margin: 20px 0 0;
+}
+
+.activity-summary .activity-next-action {
+  grid-column: 1 / -1;
+  padding: 16px;
+  background: var(--mat-sys-primary-container);
+}
+
+.activity-summary dt,
+.activity-timeline span {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.activity-summary dd {
+  margin: 5px 0 0;
+  white-space: pre-wrap;
+}
+
+.activity-next-action dd {
+  color: var(--mat-sys-on-primary-container);
+  font-weight: 700;
+}
+
+.activity-timeline {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-timeline li {
+  margin-top: 14px;
+  padding-left: 16px;
+  border-left: 2px solid var(--mat-sys-outline-variant);
+}
+
+.activity-timeline p,
+.activity-empty {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.activity-empty {
+  color: var(--mat-sys-on-surface-variant);
 }
 
 .handoff-actions {
@@ -1004,6 +1061,10 @@ code {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .activity-summary {
+    grid-template-columns: 1fr;
+  }
+
   .detail-grid > div:nth-child(4n) {
     border-right: 1px solid var(--mat-sys-outline-variant);
   }
@@ -1046,6 +1107,7 @@ code {
 
   .usage-limit,
   .usage-totals,
+  .activity-detail,
   .handoff-detail,
   .lifecycle-detail,
   .token-detail,
@@ -1071,6 +1133,7 @@ code {
 
   .lifecycle-intro,
   .lifecycle-result,
+  .activity-heading,
   .handoff-heading,
   .handoff-actions {
     align-items: stretch;

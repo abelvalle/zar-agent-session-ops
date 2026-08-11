@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.25.0 - Actionable activity record / Ficha de actividad accionable
+
+- ES: añade a cada ficha el objetivo, último resultado, petición pendiente,
+  actividad reciente y siguiente paso derivados de evidencia local explícita.
+- EN: adds objective, latest outcome, pending request, recent activity, and next
+  step to every record from explicit local evidence.
+- ES: incorpora `GET /api/sessions/{record_key}/activity`; limita la vista a seis
+  fragmentos de 500 caracteres, no expone rutas y no persiste mensajes.
+- EN: adds `GET /api/sessions/{record_key}/activity`; it caps the view at six
+  500-character excerpts, exposes no paths, and persists no messages.
+- Verificación / Verification: 25 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.25 validados.
+- Detalles / Details: [docs/milestones/0.25.0.md](docs/milestones/0.25.0.md).
+
 ## 0.24.0 - Live local Codex limit / Límite local vigente de Codex
 
 - ES: separa el límite Codex vigente del histórico de tokens y lo obtiene del

@@ -1085,6 +1085,51 @@ def _handoff_excerpt(text: str, max_chars: int = 800) -> str:
     return "\n".join(f"> {line}" if line else ">" for line in escaped.splitlines())
 
 
+def _activity_excerpt(text: str, max_chars: int = 500) -> str:
+    excerpt = text.strip()
+    if len(excerpt) > max_chars:
+        return excerpt[: max_chars - 1].rstrip() + "…"
+    return excerpt
+
+
+def session_activity(session: Session, transcript: str) -> dict[str, object]:
+    messages = _handoff_messages(transcript)
+    user_messages = [content for role, content in messages if role == "user"]
+    assistant_messages = [content for role, content in messages if role == "assistant"]
+    pending_request = (
+        _activity_excerpt(messages[-1][1])
+        if messages and messages[-1][0] == "user"
+        else None
+    )
+    if pending_request:
+        next_action = "respond_to_pending_request"
+    elif session.status == "active" and session.last_event_type == "task_started":
+        next_action = "review_active_task"
+    else:
+        next_action = "verify_repository_state"
+    return {
+        "objective": _activity_excerpt(
+            session.title.strip()
+            if session.title.strip()
+            else (
+                user_messages[0]
+                if user_messages
+                else "Objective not identified in local metadata."
+            )
+        ),
+        "latest_outcome": (
+            _activity_excerpt(assistant_messages[-1]) if assistant_messages else None
+        ),
+        "pending_request": pending_request,
+        "next_action": next_action,
+        "recent_activity": [
+            {"role": role, "text": _activity_excerpt(content)}
+            for role, content in messages[-6:]
+        ],
+        "evidence": "local_transcript_and_lifecycle_metadata",
+    }
+
+
 def base_session_handoff(session: Session, transcript: str) -> str:
     messages = _handoff_messages(transcript)
     user_messages = [content for role, content in messages if role == "user"]

@@ -25,6 +25,7 @@ from zar_agent_session_ops.core import (
     restore_archived_session,
     restore_blocked_candidate,
     scan_codex,
+    session_activity,
     session_key,
     session_handoff,
     summarize_with_ollama,
@@ -35,6 +36,32 @@ from zar_agent_session_ops.core import (
 
 
 class SessionFlowTest(unittest.TestCase):
+    def test_builds_bounded_activity_from_explicit_local_evidence(self) -> None:
+        session = Session(
+            session_id="activity",
+            agent="codex",
+            path=Path("session.jsonl"),
+            repository="D:/repo",
+            started_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+            last_activity_at=datetime(2026, 8, 2, tzinfo=timezone.utc),
+            size_bytes=100,
+            event_count=3,
+            title="Fix parser",
+            last_event_type="task_started",
+        )
+
+        activity = session_activity(
+            session,
+            "user: Fix parser\n\nassistant: Parser fixed\n\nuser: Add regression tests",
+        )
+
+        self.assertEqual("Fix parser", activity["objective"])
+        self.assertEqual("Parser fixed", activity["latest_outcome"])
+        self.assertEqual("Add regression tests", activity["pending_request"])
+        self.assertEqual("respond_to_pending_request", activity["next_action"])
+        self.assertEqual(3, len(activity["recent_activity"]))
+        self.assertNotIn("path", activity)
+
     def test_generates_base_handoff_without_ollama(self) -> None:
         session = Session(
             session_id="base-handoff",

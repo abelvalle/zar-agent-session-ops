@@ -128,7 +128,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.24.0"},
+                    {"status": "ok", "version": "0.25.0"},
                     client.get("/api/health").json(),
                 )
                 self.assertEqual("unavailable", client.get("/api/usage").json()["status"])
@@ -144,6 +144,13 @@ class ApiTest(unittest.TestCase):
                     inventory["sessions"][0]["usage"]["rate_limit_used_percent"],
                 )
                 session_record_key = inventory["sessions"][0]["record_key"]
+                activity = client.get(
+                    f"/api/sessions/{session_record_key}/activity"
+                )
+                self.assertEqual(200, activity.status_code)
+                self.assertEqual("API test", activity.json()["objective"])
+                self.assertEqual([], activity.json()["recent_activity"])
+                self.assertNotIn(str(root), activity.text)
                 handoff = client.get(
                     f"/api/sessions/{session_record_key}/handoff"
                 )
@@ -247,6 +254,7 @@ class ApiTest(unittest.TestCase):
                         "/api/usage",
                         "/api/sessions",
                         "/api/sessions/{record_key}/handoff",
+                        "/api/sessions/{record_key}/activity",
                         "/api/blocked",
                         "/api/blocked-dismissals/{record_key}/restore",
                         "/api/archives",

@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.25.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({
       count: 3,
@@ -48,7 +48,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.24.0');
+    expect(page.textContent).toContain('API 0.25.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -104,6 +104,9 @@ describe('App', () => {
         },
       ],
     });
+    http
+      .expectOne('/api/sessions/codex-active-id-Build%20dashboard/activity')
+      .flush(activityResponse());
     await fixture.whenStable();
     fixture.detectChanges();
     expect(page.textContent).toContain('Ficha operativa');
@@ -112,6 +115,9 @@ describe('App', () => {
     expect(page.textContent).toContain('Ship the widget');
     expect(page.textContent).toContain('Fusionada');
     expect(page.textContent).toContain('Relevo para continuar');
+    expect(page.textContent).toContain('Actividad y siguiente paso');
+    expect(page.textContent).toContain('Add regression tests');
+    expect(page.textContent).toContain('Responder a la última petición pendiente');
 
     [...page.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent?.includes('Generar relevo'))
@@ -161,7 +167,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.25.0' });
     http.expectOne('/api/usage').flush(liveUsage(true, 3600));
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
@@ -224,7 +230,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.25.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
     http.expectOne('/api/blocked').flush({
@@ -258,6 +264,7 @@ describe('App', () => {
       count: 0,
       references: [],
     });
+    http.expectOne('/api/sessions/codex-duplicate-id-Work%2025/activity').flush(activityResponse());
     fixture.detectChanges();
 
     expect(search.value).toBe('');
@@ -272,7 +279,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.25.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
@@ -314,7 +321,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.25.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({
       count: 1,
@@ -344,7 +351,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('blocked-id', 'Reviewed session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.25.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({
@@ -374,6 +381,9 @@ describe('App', () => {
       count: 0,
       references: [],
     });
+    http
+      .expectOne('/api/sessions/codex-blocked-id-Reviewed%20session/activity')
+      .flush(activityResponse());
     expect(page.textContent).toContain('Revisión de bloqueo');
 
     [...page.querySelectorAll<HTMLButtonElement>('button')]
@@ -446,7 +456,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('old-id', 'Old session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.24.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.25.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
@@ -470,6 +480,7 @@ describe('App', () => {
       count: 0,
       references: [],
     });
+    http.expectOne('/api/sessions/codex-old-id-Old%20session/activity').flush(activityResponse());
     expect(page.textContent).toContain('Ciclo de vida');
 
     [...page.querySelectorAll<HTMLButtonElement>('button')]
@@ -550,6 +561,7 @@ describe('App', () => {
       count: 0,
       references: [],
     });
+    http.expectOne('/api/sessions/codex-old-id-Old%20session/activity').flush(activityResponse());
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
     http.expectOne('/api/blocked').flush({ count: 0, threshold_hours: 24, sessions: [] });
     http.expectOne('/api/retention').flush({
@@ -618,5 +630,19 @@ function liveUsage(stale = false, ageSeconds = 45) {
       rate_limit_window_minutes: 10080,
       rate_limit_resets_at: '2026-08-15T22:59:43Z',
     },
+  };
+}
+
+function activityResponse() {
+  return {
+    objective: 'Fix parser',
+    latest_outcome: 'Parser fixed',
+    pending_request: 'Add regression tests',
+    next_action: 'respond_to_pending_request',
+    recent_activity: [
+      { role: 'assistant', text: 'Parser fixed' },
+      { role: 'user', text: 'Add regression tests' },
+    ],
+    evidence: 'local_transcript_and_lifecycle_metadata',
   };
 }

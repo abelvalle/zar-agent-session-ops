@@ -588,6 +588,55 @@
           </div>
         </dl>
 
+        <section class="activity-detail" aria-labelledby="activity-title">
+          <div class="activity-heading">
+            <div>
+              <h3 id="activity-title">Actividad y siguiente paso</h3>
+              <p>Lectura bajo demanda del contexto local; no se guarda el transcript.</p>
+            </div>
+          </div>
+
+          @if (activity.isLoading()) {
+            <mat-progress-bar mode="indeterminate" aria-label="Cargando actividad" />
+          } @else if (activity.error()) {
+            <p class="lifecycle-error" role="alert">
+              No se pudo leer la actividad. Actualiza el inventario y vuelve a intentarlo.
+            </p>
+          } @else if (activity.value(); as currentActivity) {
+            <dl class="activity-summary">
+              <div>
+                <dt>Objetivo</dt>
+                <dd>{{ currentActivity.objective }}</dd>
+              </div>
+              <div>
+                <dt>Último resultado</dt>
+                <dd>{{ currentActivity.latest_outcome || 'Sin respuesta registrada' }}</dd>
+              </div>
+              <div>
+                <dt>Petición pendiente</dt>
+                <dd>{{ currentActivity.pending_request || 'No hay una petición posterior' }}</dd>
+              </div>
+              <div class="activity-next-action">
+                <dt>Siguiente acción</dt>
+                <dd>{{ nextActionLabel(currentActivity.next_action) }}</dd>
+              </div>
+            </dl>
+
+            @if (currentActivity.recent_activity.length) {
+              <ol class="activity-timeline" aria-label="Actividad reciente">
+                @for (item of currentActivity.recent_activity; track $index) {
+                  <li>
+                    <span>{{ activityRole(item.role) }}</span>
+                    <p>{{ item.text }}</p>
+                  </li>
+                }
+              </ol>
+            } @else {
+              <p class="activity-empty">No hay mensajes locales legibles para esta sesión.</p>
+            }
+          }
+        </section>
+
         <section class="handoff-detail" aria-labelledby="handoff-title">
           <div class="handoff-heading">
             <div>

@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.24.0` muestra el
-límite semanal de Codex desde su último evento local, indica cuándo se observó y
-lo mantiene separado del histórico de tokens por sesión.
+sesiones locales de agentes de programación. La versión `0.25.0` convierte cada
+ficha en una lectura accionable: objetivo, último resultado, petición pendiente,
+actividad reciente y siguiente paso basados en evidencia local.
 
 ## Funciones disponibles
 
@@ -38,6 +38,8 @@ lo mantiene separado del histórico de tokens por sesión.
   fila y la mantiene resaltada.
 - Abre una ficha operativa con origen, tipo, eventos, tamaño, tokens y relaciones
   GitHub; el detalle conserva valor aunque no existan referencias GitHub.
+- Lee bajo demanda hasta seis fragmentos recientes y muestra objetivo, último
+  resultado, petición pendiente y siguiente acción sin guardar el transcript.
 - Resuelve enlaces explícitos a GitHub Issues, Pull Requests y commits.
 - Resume una sesión mediante un modelo Ollama local.
 - Genera un relevo Markdown base desde cualquier ficha con metadatos y contexto
@@ -124,6 +126,8 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
   estado de obsolescencia; no reindexa el inventario ni expone rutas.
 - `GET /api/sessions`: inventario con telemetría de tokens cuando existe; admite
   los filtros `agent` y `status`.
+- `GET /api/sessions/{record_key}/activity`: ficha de actividad acotada de la
+  sesión exacta, sin rutas fuente ni persistencia de mensajes.
 - `GET /api/sessions/{record_key}/handoff`: relevo Markdown base de la sesión
   exacta, sin rutas fuente ni dependencia de Ollama.
 - `GET /api/blocked`: señales activas y descartadas de posibles bloqueos.
@@ -423,6 +427,8 @@ transcripción original completa en vez de reducir el contexto.
 - `maintain` tampoco mueve archivos sin `--apply-policy`.
 - El relevo base del dashboard no sale de la API local. Los resúmenes, relevos
   CLI enriquecidos e informes operativos solo se envían al Ollama local.
+- La ficha de actividad se calcula bajo demanda, limita cada fragmento a 500
+  caracteres y no guarda su contenido en SQLite.
 - En Compose, Claude Code se monta como solo lectura. Codex se monta con escritura
   para ejecutar únicamente el archivado confirmado y su restauración; la API se
   ejecuta con UID 10001 y solo el dashboard publica un puerto ligado a
