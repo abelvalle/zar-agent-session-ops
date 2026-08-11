@@ -319,6 +319,105 @@
       </div>
     </section>
 
+    <section class="maintenance" aria-labelledby="maintenance-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="maintenance-title">Políticas y mantenimiento</h2>
+          <p>Ajusta los umbrales y comprueba su efecto sin mover archivos.</p>
+        </div>
+        <span class="dry-run-badge">Solo simulación</span>
+      </div>
+
+      <div class="maintenance-grid">
+        <article>
+          <h3>Política local</h3>
+          @if (policy.error()) {
+            <p class="lifecycle-error" role="alert">No se pudo cargar la política.</p>
+          } @else {
+            <div class="policy-fields">
+              <label>
+                Archivar tras días sin actividad
+                <input
+                  type="number"
+                  min="1"
+                  max="3650"
+                  [value]="policyArchiveDays() ?? policy.value()?.archive_after_days ?? 30"
+                  (input)="setPolicyArchiveDays($event)"
+                />
+              </label>
+              <label>
+                Revisar bloqueo tras horas
+                <input
+                  type="number"
+                  min="1"
+                  max="8760"
+                  [value]="policyBlockedHours() ?? policy.value()?.blocked_after_hours ?? 24"
+                  (input)="setPolicyBlockedHours($event)"
+                />
+              </label>
+            </div>
+            <div class="maintenance-actions">
+              <button
+                mat-stroked-button
+                type="button"
+                [disabled]="policySaveStatus() === 'saving'"
+                (click)="savePolicy()"
+              >
+                {{ policySaveStatus() === 'saving' ? 'Guardando…' : 'Guardar política' }}
+              </button>
+              @if (policySaveStatus() === 'saved') {
+                <span role="status">Política guardada.</span>
+              }
+            </div>
+          }
+          @if (policyError()) {
+            <p class="lifecycle-error" role="alert">{{ policyError() }}</p>
+          }
+        </article>
+
+        <article>
+          <h3>Simulación de mantenimiento</h3>
+          <p>Recalcula candidatas con la política guardada y conserva un recibo local.</p>
+          <button
+            mat-flat-button
+            type="button"
+            [disabled]="maintenanceStatus() === 'running'"
+            (click)="runMaintenancePreview()"
+          >
+            {{ maintenanceStatus() === 'running' ? 'Simulando…' : 'Ejecutar simulación' }}
+          </button>
+          @if (maintenanceResult(); as run) {
+            <p class="maintenance-result" role="status">
+              {{ run.archive_candidate_count }} candidatas a archivo y
+              {{ run.blocked_candidate_count }} posibles bloqueos. No se movió ningún archivo.
+            </p>
+          }
+          @if (maintenanceError()) {
+            <p class="lifecycle-error" role="alert">{{ maintenanceError() }}</p>
+          }
+        </article>
+
+        <article>
+          <h3>Historial reciente</h3>
+          @if ((maintenanceHistory.value()?.count ?? 0) === 0) {
+            <p>Aún no hay simulaciones registradas.</p>
+          } @else {
+            <ol class="maintenance-history">
+              @for (run of maintenanceHistory.value()?.runs ?? []; track run.id) {
+                <li>
+                  <strong>{{ run.ran_at | date: 'yyyy-MM-dd HH:mm' }}</strong>
+                  <span>
+                    {{ run.archive_candidate_count }} archivo ·
+                    {{ run.blocked_candidate_count }} bloqueo
+                  </span>
+                </li>
+              }
+            </ol>
+          }
+        </article>
+      </div>
+    </section>
+
     <section class="reports" aria-labelledby="reports-title">
       <div class="section-heading report-heading">
         <div>

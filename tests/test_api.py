@@ -128,10 +128,37 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.26.0"},
+                    {"status": "ok", "version": "0.27.0"},
                     client.get("/api/health").json(),
                 )
                 self.assertEqual("unavailable", client.get("/api/usage").json()["status"])
+                self.assertEqual(
+                    {"archive_after_days": 30, "blocked_after_hours": 24},
+                    client.get("/api/policy").json(),
+                )
+                rejected_policy = client.put(
+                    "/api/policy",
+                    json={"archive_after_days": 0, "blocked_after_hours": 12},
+                )
+                self.assertEqual(422, rejected_policy.status_code)
+                saved_policy = client.put(
+                    "/api/policy",
+                    json={"archive_after_days": 45, "blocked_after_hours": 12},
+                )
+                self.assertEqual(200, saved_policy.status_code)
+                self.assertEqual(45, saved_policy.json()["archive_after_days"])
+                self.assertIn("archive_dir", config.read_text(encoding="utf-8"))
+                preview = client.post("/api/maintenance/preview")
+                self.assertEqual(200, preview.status_code)
+                self.assertEqual("dry_run", preview.json()["mode"])
+                self.assertEqual(1, preview.json()["archive_candidate_count"])
+                history = client.get("/api/maintenance/history").json()
+                self.assertEqual(1, history["count"])
+                self.assertEqual(preview.json()["id"], history["runs"][0]["id"])
+                client.put(
+                    "/api/policy",
+                    json={"archive_after_days": 30, "blocked_after_hours": 24},
+                )
                 inventory = client.get(
                     "/api/sessions?agent=codex&status=active"
                 ).json()
@@ -252,6 +279,9 @@ class ApiTest(unittest.TestCase):
                         "/api/health",
                         "/api/refresh",
                         "/api/usage",
+                        "/api/policy",
+                        "/api/maintenance/history",
+                        "/api/maintenance/preview",
                         "/api/sessions",
                         "/api/sessions/{record_key}/handoff",
                         "/api/sessions/{record_key}/activity",

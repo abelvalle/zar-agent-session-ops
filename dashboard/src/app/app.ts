@@ -76,6 +76,26 @@ interface HealthResponse {
   version: string;
 }
 
+interface PolicyResponse {
+  archive_after_days: number;
+  blocked_after_hours: number;
+}
+
+interface MaintenanceRun {
+  id: number;
+  ran_at: string;
+  mode: 'dry_run';
+  archive_after_days: number;
+  blocked_after_hours: number;
+  archive_candidate_count: number;
+  blocked_candidate_count: number;
+}
+
+interface MaintenanceHistoryResponse {
+  count: number;
+  runs: MaintenanceRun[];
+}
+
 interface RefreshResponse {
   status: 'idle' | 'running' | 'completed' | 'failed';
   count: number | null;
@@ -164,6 +184,8 @@ interface BlockDismissalResult {
 type ArchiveStatus = 'idle' | 'loading' | 'preview' | 'archiving' | 'archived' | 'restoring';
 type BlockReviewStatus = 'idle' | 'confirming' | 'dismissing' | 'dismissed' | 'restoring';
 type HandoffStatus = 'idle' | 'loading' | 'ready';
+type PolicySaveStatus = 'idle' | 'saving' | 'saved';
+type MaintenanceStatus = 'idle' | 'running' | 'completed';
 
 type ReportName = 'weekly' | 'blocked' | 'sessions';
 
@@ -218,6 +240,13 @@ export class App {
   protected readonly handoffMarkdown = signal('');
   protected readonly handoffError = signal<string | null>(null);
   protected readonly handoffCopied = signal(false);
+  protected readonly policyArchiveDays = signal<number | null>(null);
+  protected readonly policyBlockedHours = signal<number | null>(null);
+  protected readonly policySaveStatus = signal<PolicySaveStatus>('idle');
+  protected readonly policyError = signal<string | null>(null);
+  protected readonly maintenanceStatus = signal<MaintenanceStatus>('idle');
+  protected readonly maintenanceResult = signal<MaintenanceRun | null>(null);
+  protected readonly maintenanceError = signal<string | null>(null);
   protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
     { id: 'weekly', label: 'Semanal' },
     { id: 'blocked', label: 'Bloqueos' },
@@ -226,6 +255,10 @@ export class App {
   protected readonly selectedReport = signal<ReportName>('weekly');
   protected readonly health = httpResource<HealthResponse>(() => '/api/health');
   protected readonly liveUsage = httpResource<LiveUsageResponse>(() => '/api/usage');
+  protected readonly policy = httpResource<PolicyResponse>(() => '/api/policy');
+  protected readonly maintenanceHistory = httpResource<MaintenanceHistoryResponse>(
+    () => '/api/maintenance/history',
+  );
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
   protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
@@ -531,6 +564,71 @@ export class App {
 
   protected handoffUrl(session: AgentSession): string {
     return `/api/sessions/${session.record_key}/handoff`;
+  }
+
+  protected setPolicyArchiveDays(event: Event): void {
+    this.policyArchiveDays.set(Number((event.target as HTMLInputElement).value));
+    this.policySaveStatus.set('idle');
+  }
+
+  protected setPolicyBlockedHours(event: Event): void {
+    this.policyBlockedHours.set(Number((event.target as HTMLInputElement).value));
+    this.policySaveStatus.set('idle');
+  }
+
+  protected savePolicy(): void {
+    const current = this.policy.value();
+    const archiveAfterDays = this.policyArchiveDays() ?? current?.archive_after_days;
+    const blockedAfterHours = this.policyBlockedHours() ?? current?.blocked_after_hours;
+    if (!archiveAfterDays || !blockedAfterHours || this.policySaveStatus() === 'saving') {
+      return;
+    }
+    this.policyError.set(null);
+    this.policySaveStatus.set('saving');
+    this.http
+      .put<PolicyResponse>('/api/policy', {
+        archive_after_days: archiveAfterDays,
+        blocked_after_hours: blockedAfterHours,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.policyArchiveDays.set(null);
+          this.policyBlockedHours.set(null);
+          this.policySaveStatus.set('saved');
+          this.policy.reload();
+          this.blocked.reload();
+          this.retention.reload();
+        },
+        error: () => {
+          this.policyError.set(
+            'No se guardó la política. Revisa los valores e inténtalo de nuevo.',
+          );
+          this.policySaveStatus.set('idle');
+        },
+      });
+  }
+
+  protected runMaintenancePreview(): void {
+    if (this.maintenanceStatus() === 'running') {
+      return;
+    }
+    this.maintenanceError.set(null);
+    this.maintenanceStatus.set('running');
+    this.http
+      .post<MaintenanceRun>('/api/maintenance/preview', {})
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.maintenanceResult.set(result);
+          this.maintenanceStatus.set('completed');
+          this.maintenanceHistory.reload();
+        },
+        error: () => {
+          this.maintenanceError.set('No se pudo ejecutar la simulación de mantenimiento.');
+          this.maintenanceStatus.set('idle');
+        },
+      });
   }
 
   protected activityRole(role: 'user' | 'assistant'): string {

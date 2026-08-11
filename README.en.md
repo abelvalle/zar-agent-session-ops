@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.26.0` completes the `Review → Understand → Decide` flow in each record and
-offers justified actions to continue, dismiss a false block, or review archiving.
+`0.27.0` edits policy thresholds in the web UI and runs maintenance previews
+with local history, always without moving files.
 
 ## Available features
 
@@ -29,6 +29,10 @@ offers justified actions to continue, dismiss a false block, or review archiving
 - Dismisses false blocked signals, stores that decision in SQLite, and
   automatically reactivates the signal after new session activity.
 - Runs scanning, policy evaluation, and reports in one schedulable cycle.
+- Edits blocking and retention thresholds from the web, validates their ranges,
+  and preserves the configured archive destination.
+- Runs maintenance previews and stores their counts and policy in SQLite; web
+  maintenance never applies batch archiving.
 - Exposes health, sessions, and blocked signals through a local API.
 - Shows attention signals first and keeps the full inventory as a secondary
   lookup surface.
@@ -118,6 +122,10 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `GET /api/health`: status and version.
 - `GET /api/refresh`: state of the latest requested scan.
 - `POST /api/refresh`: starts a background Codex and Claude Code scan.
+- `GET|PUT /api/policy`: reads or updates validated local thresholds.
+- `POST /api/maintenance/preview`: runs and records a preview without moving
+  files.
+- `GET /api/maintenance/history`: returns the latest ten recorded previews.
 - `GET /api/usage`: latest local Codex limit snapshot, its age, and stale state;
   it neither reindexes the inventory nor exposes paths.
 - `GET /api/sessions`: inventory with token telemetry when available and optional
@@ -415,6 +423,7 @@ complete original transcript instead of reducing context.
 - GitHub integration sends only explicit identifiers to `api.github.com`.
 - `--apply` is required before files can move.
 - `maintain` also requires `--apply-policy` before files can move.
+- Web maintenance exposes no apply mode: it is always `dry_run`.
 - The dashboard's base handoff stays inside the local API. Summaries, enriched
   CLI handoffs, and operational digests are sent only to local Ollama.
 - The activity record is computed on demand, caps each excerpt at 500

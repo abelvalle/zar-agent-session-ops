@@ -314,6 +314,101 @@ h3 {
   border-left: 1px solid var(--mat-sys-outline-variant);
 }
 
+.maintenance {
+  margin-top: 28px;
+  overflow: hidden;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 16px;
+  background: var(--mat-sys-surface-container-lowest);
+}
+
+.dry-run-badge {
+  padding: 6px 10px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 999px;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.maintenance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.maintenance-grid > article {
+  min-width: 0;
+  padding: 24px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.maintenance-grid > article + article {
+  border-left: 1px solid var(--mat-sys-outline-variant);
+}
+
+.maintenance-grid h3,
+.maintenance-grid p {
+  margin-bottom: 0;
+}
+
+.maintenance-grid p,
+.policy-fields label,
+.maintenance-history span {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 12px;
+}
+
+.policy-fields {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.policy-fields label {
+  display: grid;
+  gap: 6px;
+  font-weight: 650;
+}
+
+.policy-fields input {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--mat-sys-outline);
+  border-radius: 8px;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: inherit;
+}
+
+.maintenance-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.maintenance-result {
+  margin-top: 16px !important;
+  color: var(--mat-sys-primary) !important;
+  font-weight: 700;
+}
+
+.maintenance-history {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.maintenance-history li,
+.maintenance-history strong,
+.maintenance-history span {
+  display: block;
+}
+
+.maintenance-history li + li {
+  margin-top: 12px;
+}
+
 .attention-panel__heading {
   display: flex;
   align-items: flex-start;
@@ -1078,6 +1173,7 @@ code {
 
   .attention-columns,
   .usage-columns,
+  .maintenance-grid,
   .message {
     grid-template-columns: 1fr;
   }
@@ -1089,6 +1185,10 @@ code {
 
   .attention-panel + .attention-panel {
     border-top: 1px solid var(--mat-sys-outline-variant);
+    border-left: 0;
+  }
+
+  .maintenance-grid > article + article {
     border-left: 0;
   }
 

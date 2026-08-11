@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.26.0` completa en
-cada ficha el flujo `Revisar → Entender → Decidir` y ofrece acciones justificadas
-para continuar, descartar un falso bloqueo o revisar el archivado.
+sesiones locales de agentes de programación. La versión `0.27.0` permite ajustar
+los umbrales desde la web y ejecutar simulaciones de mantenimiento con historial
+local, siempre sin mover archivos.
 
 ## Funciones disponibles
 
@@ -31,6 +31,10 @@ para continuar, descartar un falso bloqueo o revisar el archivado.
 - Permite descartar falsos bloqueos, conserva la decisión en SQLite y reactiva
   la señal automáticamente cuando la sesión vuelve a tener actividad.
 - Ejecuta escaneo, política e informes en un único ciclo programable.
+- Edita desde la web los umbrales de bloqueo y retención, valida sus rangos y
+  conserva el destino de archivo configurado.
+- Ejecuta simulaciones de mantenimiento y guarda en SQLite sus recuentos y la
+  política usada; el modo web no aplica archivados por lotes.
 - Expone salud, sesiones y posibles bloqueos mediante una API local.
 - Presenta primero las señales que requieren atención y deja el inventario como
   vista de consulta secundaria.
@@ -124,6 +128,10 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `GET /api/health`: estado y versión.
 - `GET /api/refresh`: estado del último escaneo solicitado.
 - `POST /api/refresh`: inicia un escaneo Codex y Claude Code en segundo plano.
+- `GET|PUT /api/policy`: consulta o actualiza los umbrales locales validados.
+- `POST /api/maintenance/preview`: ejecuta y registra una simulación sin mover
+  archivos.
+- `GET /api/maintenance/history`: últimas diez simulaciones registradas.
 - `GET /api/usage`: última instantánea local del límite Codex, su antigüedad y
   estado de obsolescencia; no reindexa el inventario ni expone rutas.
 - `GET /api/sessions`: inventario con telemetría de tokens cuando existe; admite
@@ -427,6 +435,7 @@ transcripción original completa en vez de reducir el contexto.
 - La integración GitHub solo envía identificadores explícitos a `api.github.com`.
 - `--apply` es obligatorio para mover archivos.
 - `maintain` tampoco mueve archivos sin `--apply-policy`.
+- El mantenimiento web no acepta un modo de aplicación: es siempre `dry_run`.
 - El relevo base del dashboard no sale de la API local. Los resúmenes, relevos
   CLI enriquecidos e informes operativos solo se envían al Ollama local.
 - La ficha de actividad se calcula bajo demanda, limita cada fragmento a 500

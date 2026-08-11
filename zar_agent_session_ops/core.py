@@ -548,8 +548,24 @@ def _create_blocked_dismissals_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def _create_maintenance_runs_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS maintenance_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ran_at TEXT NOT NULL,
+            archive_after_days INTEGER NOT NULL,
+            blocked_after_hours INTEGER NOT NULL,
+            archive_candidate_count INTEGER NOT NULL,
+            blocked_candidate_count INTEGER NOT NULL
+        )
+        """
+    )
+
+
 def _ensure_schema(connection: sqlite3.Connection) -> None:
     _create_blocked_dismissals_table(connection)
+    _create_maintenance_runs_table(connection)
     table = connection.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
     ).fetchone()
@@ -855,6 +871,97 @@ def load_policy(path: Path) -> Policy:
     if not resolved_archive.is_absolute():
         resolved_archive = path.parent / resolved_archive
     return Policy(days, resolved_archive.resolve(), blocked_hours)
+
+
+def save_policy(path: Path, archive_after_days: int, blocked_after_hours: int) -> Policy:
+    if (
+        isinstance(archive_after_days, bool)
+        or not isinstance(archive_after_days, int)
+        or not 1 <= archive_after_days <= 3_650
+    ):
+        raise ValueError("archive_after_days must be between 1 and 3650")
+    if (
+        isinstance(blocked_after_hours, bool)
+        or not isinstance(blocked_after_hours, int)
+        or not 1 <= blocked_after_hours <= 8_760
+    ):
+        raise ValueError("blocked_after_hours must be between 1 and 8760")
+    current = load_policy(path)
+    content = (
+        "[policy]\n"
+        f"archive_after_days = {archive_after_days}\n"
+        f"blocked_after_hours = {blocked_after_hours}\n"
+        f"archive_dir = {json.dumps(str(current.archive_dir))}\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(content, encoding="utf-8")
+    temporary.replace(path)
+    return load_policy(path)
+
+
+def record_maintenance_preview(
+    database: Path,
+    policy: Policy,
+    archive_candidate_count: int,
+    blocked_candidate_count: int,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    ran_at = now or datetime.now(timezone.utc)
+    with _connect(database) as connection:
+        _ensure_schema(connection)
+        cursor = connection.execute(
+            """
+            INSERT INTO maintenance_runs (
+                ran_at, archive_after_days, blocked_after_hours,
+                archive_candidate_count, blocked_candidate_count
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                ran_at.isoformat(),
+                policy.archive_after_days,
+                policy.blocked_after_hours,
+                archive_candidate_count,
+                blocked_candidate_count,
+            ),
+        )
+        run_id = cursor.lastrowid
+    return {
+        "id": run_id,
+        "ran_at": ran_at,
+        "mode": "dry_run",
+        "archive_after_days": policy.archive_after_days,
+        "blocked_after_hours": policy.blocked_after_hours,
+        "archive_candidate_count": archive_candidate_count,
+        "blocked_candidate_count": blocked_candidate_count,
+    }
+
+
+def maintenance_history(database: Path, limit: int = 10) -> list[dict[str, object]]:
+    if not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    with _connect(database) as connection:
+        _ensure_schema(connection)
+        rows = connection.execute(
+            """
+            SELECT id, ran_at, archive_after_days, blocked_after_hours,
+                   archive_candidate_count, blocked_candidate_count
+            FROM maintenance_runs ORDER BY id DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "id": row[0],
+            "ran_at": datetime.fromisoformat(row[1]),
+            "mode": "dry_run",
+            "archive_after_days": row[2],
+            "blocked_after_hours": row[3],
+            "archive_candidate_count": row[4],
+            "blocked_candidate_count": row[5],
+        }
+        for row in rows
+    ]
 
 
 def policy_candidates(

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.27.0 - Web policy and maintenance / Política y mantenimiento web
+
+- ES: permite editar desde la interfaz los umbrales de retención y bloqueo con
+  validación de rangos, conservando el destino de archivo existente.
+- EN: edits retention and blocking thresholds in the UI with range validation
+  while preserving the existing archive destination.
+- ES: ejecuta mantenimiento exclusivamente en simulación y registra en SQLite
+  fecha, política y recuentos para mostrar un historial reciente.
+- EN: runs web maintenance exclusively as a preview and stores date, policy, and
+  counts in SQLite for recent history.
+- Verificación / Verification: 25 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.27 validados.
+- Detalles / Details: [docs/milestones/0.27.0.md](docs/milestones/0.27.0.md).
+
 ## 0.26.0 - Complete decision flow / Flujo completo de decisión
 
 - ES: reúne en la ficha tres pasos explícitos: revisar metadatos y señales,

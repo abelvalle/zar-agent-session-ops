@@ -34,11 +34,14 @@ from .core import (
     load_sessions,
     latest_codex_usage,
     markdown_report,
+    maintenance_history,
     policy_candidates,
+    record_maintenance_preview,
     restore_archived_session,
     restore_blocked_candidate,
     scan_claude,
     scan_codex,
+    save_policy,
     session_activity,
     sync_sessions,
     session_key,
@@ -256,6 +259,52 @@ def create_app(
                 )
                 background_tasks.add_task(run_refresh)
             return dict(refresh_state)
+
+    @app.get("/api/policy")
+    def policy() -> dict[str, int]:
+        current = load_policy(config)
+        return {
+            "archive_after_days": current.archive_after_days,
+            "blocked_after_hours": current.blocked_after_hours,
+        }
+
+    @app.put("/api/policy")
+    def update_policy(
+        archive_after_days: Annotated[int, Body(embed=True, ge=1, le=3_650)],
+        blocked_after_hours: Annotated[int, Body(embed=True, ge=1, le=8_760)],
+    ) -> dict[str, int]:
+        try:
+            saved = save_policy(config, archive_after_days, blocked_after_hours)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        return {
+            "archive_after_days": saved.archive_after_days,
+            "blocked_after_hours": saved.blocked_after_hours,
+        }
+
+    @app.get("/api/maintenance/history")
+    def maintenance_runs() -> dict[str, object]:
+        runs = maintenance_history(database)
+        return {"count": len(runs), "runs": runs}
+
+    @app.post("/api/maintenance/preview")
+    def maintenance_preview() -> dict[str, object]:
+        current = load_policy(config)
+        items = load_sessions(database)
+        archive_items = policy_candidates(items, current)
+        blocked_items = blocked_candidates(items, current)
+        dismissals = active_blocked_dismissals(database, blocked_items)
+        visible_blocked = [
+            item for item in blocked_items if session_key(item) not in dismissals
+        ]
+        run = record_maintenance_preview(
+            database, current, len(archive_items), len(visible_blocked)
+        )
+        return {
+            **run,
+            "archive_candidates": [_session_data(item) for item in archive_items],
+            "blocked_candidates": [_session_data(item) for item in visible_blocked],
+        }
 
     @app.get("/sessions", include_in_schema=False)
     @app.get("/api/sessions")
