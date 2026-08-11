@@ -495,6 +495,33 @@
           <p class="lifecycle-error" role="alert">{{ chatgptImportError() }}</p>
         }
       </div>
+
+      <div class="ollama-status" aria-live="polite">
+        <div>
+          <h3>Resúmenes locales con Ollama</h3>
+          @if (ollama.isLoading()) {
+            <p>Comprobando el servicio local…</p>
+          } @else if (ollama.error()) {
+            <p>No se pudo consultar Ollama. La aplicación no instala ni descarga modelos.</p>
+          } @else if (ollama.value()?.status === 'ready') {
+            <p>
+              Disponible con {{ ollama.value()?.models?.length }} modelo(s):
+              {{ ollama.value()?.models?.join(', ') }}.
+            </p>
+          } @else if (ollama.value()?.status === 'no_models') {
+            <p>
+              Ollama está disponible, pero no hay modelos instalados. Instala uno manualmente; la
+              aplicación no descarga modelos.
+            </p>
+          } @else {
+            <p>
+              Ollama local no está disponible. Inícialo para habilitar resúmenes; la aplicación no
+              envía el contenido a servicios remotos.
+            </p>
+          }
+        </div>
+        <span>Solo local</span>
+      </div>
     </section>
 
     <section class="reports" aria-labelledby="reports-title">
@@ -941,6 +968,58 @@
 
           @if (handoffError()) {
             <p class="lifecycle-error" role="alert">{{ handoffError() }}</p>
+          }
+        </section>
+
+        <section class="summary-detail" aria-labelledby="summary-title">
+          <div class="summary-heading">
+            <div>
+              <h3 id="summary-title">Resumen local con Ollama</h3>
+              <p>Se genera bajo demanda y se muestra aquí; no se guarda ni se envía fuera.</p>
+            </div>
+            @if (ollama.value()?.status === 'ready') {
+              <div class="summary-controls">
+                <label>
+                  Modelo local
+                  <select (change)="setSummaryModel($event)">
+                    @for (model of ollama.value()?.models ?? []; track model) {
+                      <option [value]="model">{{ model }}</option>
+                    }
+                  </select>
+                </label>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [disabled]="summaryStatus() === 'loading'"
+                  (click)="generateSummary(selected)"
+                >
+                  {{ summaryStatus() === 'loading' ? 'Resumiendo…' : 'Generar resumen' }}
+                </button>
+              </div>
+            }
+          </div>
+
+          @if (ollama.value()?.status === 'no_models') {
+            <p class="summary-unavailable">
+              No hay modelos instalados. La generación permanecerá deshabilitada hasta que instales
+              uno manualmente en Ollama.
+            </p>
+          } @else if (ollama.value()?.status === 'unavailable' || ollama.error()) {
+            <p class="summary-unavailable">
+              Ollama local no está disponible. Inícialo y actualiza la página para continuar.
+            </p>
+          } @else if (summaryStatus() === 'loading') {
+            <mat-progress-bar mode="indeterminate" aria-label="Generando resumen local" />
+          } @else if (summaryStatus() === 'ready') {
+            <article
+              class="report-content summary-content"
+              aria-label="Contenido del resumen local"
+              [innerHTML]="summaryHtml()"
+            ></article>
+          }
+
+          @if (summaryError()) {
+            <p class="lifecycle-error" role="alert">{{ summaryError() }}</p>
           }
         </section>
 

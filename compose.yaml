@@ -2,7 +2,7 @@ name: zar-agent-session-ops
 
 services:
   api:
-    image: zar-agent-session-ops-api:0.28.0
+    image: zar-agent-session-ops-api:0.29.0
     build:
       context: .
       dockerfile: docker/api.Dockerfile
@@ -12,6 +12,9 @@ services:
       ZAR_SESSION_DB: /data/sessions.db
       ZAR_SESSION_SOURCE: /codex
       ZAR_CLAUDE_SOURCE: /claude
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - type: bind
         source: ${CODEX_HOME:?Set CODEX_HOME to the local .codex directory}
@@ -35,7 +38,7 @@ services:
       start_period: 5m
 
   dashboard:
-    image: zar-agent-session-ops-dashboard:0.28.0
+    image: zar-agent-session-ops-dashboard:0.29.0
     build:
       context: .
       dockerfile: docker/dashboard.Dockerfile

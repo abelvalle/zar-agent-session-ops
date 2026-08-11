@@ -20,9 +20,9 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.29.0' });
     http.expectOne('/api/usage').flush(liveUsage());
-    flushMaintenanceResources(http);
+    flushMaintenanceResources(http, 'ready');
     http.expectOne('/api/sessions').flush({
       count: 3,
       sessions: [
@@ -49,7 +49,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.28.0');
+    expect(page.textContent).toContain('API 0.29.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -268,6 +268,23 @@ describe('App', () => {
     expect(page.textContent).toContain('1 · Revisar');
     expect(page.textContent).toContain('2 · Entender');
     expect(page.textContent).toContain('3 · Decidir');
+    expect(page.textContent).toContain('Resumen local con Ollama');
+    expect(page.textContent).toContain('qwen3:8b');
+
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Generar resumen'))
+      ?.click();
+    const summary = http.expectOne('/api/sessions/codex-active-id-Build dashboard/summary');
+    expect(summary.request.method).toBe('POST');
+    expect(summary.request.body).toEqual({ model: 'qwen3:8b' });
+    summary.flush({
+      model: 'qwen3:8b',
+      markdown: '# Resumen local\n\nTrabajo revisado.',
+      generated_at: '2026-08-11T20:00:00Z',
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.querySelector('.summary-content h1')?.textContent).toContain('Resumen local');
 
     [...page.querySelectorAll<HTMLButtonElement>('button')]
       .find((button) => button.textContent?.includes('Continuar con relevo'))
@@ -298,6 +315,7 @@ describe('App', () => {
       '/api/policy',
       '/api/maintenance/history',
       '/api/sources',
+      '/api/ollama',
       '/api/sessions',
       '/api/blocked',
       '/api/retention',
@@ -320,7 +338,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.29.0' });
     http.expectOne('/api/usage').flush(liveUsage(true, 3600));
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
@@ -339,6 +357,7 @@ describe('App', () => {
 
     const page = fixture.nativeElement as HTMLElement;
     expect(page.textContent).toContain('No se pudo cargar el informe');
+    expect(page.textContent).toContain('Ollama está disponible, pero no hay modelos instalados');
     expect(page.textContent).toContain('Dato obsoleto');
     expect(page.textContent).toContain('hace 1 hora');
     page.querySelector<HTMLButtonElement>('.report-retry')?.click();
@@ -384,7 +403,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.29.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
@@ -434,7 +453,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.29.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
@@ -477,8 +496,14 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.29.0' });
     http.expectOne('/api/usage').flush(liveUsage());
+    http.expectOne('/api/sources').flush({ sources: [] });
+    http.expectOne('/api/ollama').flush({
+      status: 'no_models',
+      models: [],
+      local_only: true,
+    });
     http.expectOne('/api/sessions').flush({
       count: 1,
       sessions: [session('refreshed-id', 'Fresh work', 'active')],
@@ -507,7 +532,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('blocked-id', 'Reviewed session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.29.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
@@ -613,7 +638,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('old-id', 'Old session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.29.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
@@ -805,7 +830,10 @@ function activityResponse() {
   };
 }
 
-function flushMaintenanceResources(http: HttpTestingController) {
+function flushMaintenanceResources(
+  http: HttpTestingController,
+  ollamaStatus: 'ready' | 'no_models' = 'no_models',
+) {
   http.expectOne('/api/policy').flush({
     archive_after_days: 30,
     blocked_after_hours: 24,
@@ -842,5 +870,10 @@ function flushMaintenanceResources(http: HttpTestingController) {
         import_supported: false,
       },
     ],
+  });
+  http.expectOne('/api/ollama').flush({
+    status: ollamaStatus,
+    models: ollamaStatus === 'ready' ? ['qwen3:8b'] : [],
+    local_only: true,
   });
 }

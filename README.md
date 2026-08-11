@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.28.0` hace visibles
-las fuentes Codex, Claude Code, ChatGPT y OpenCode, y permite analizar y confirmar
-una exportación oficial de ChatGPT desde la propia web.
+sesiones locales de agentes de programación. La versión `0.29.0` muestra el
+estado real de Ollama, detecta sus modelos instalados y permite generar y leer
+un resumen local dentro de la ficha de una sesión.
 
 ## Funciones disponibles
 
@@ -47,7 +47,10 @@ una exportación oficial de ChatGPT desde la propia web.
 - Une metadatos, actividad y señales en un flujo de decisión visible; prioriza
   bloqueos sobre retención y conserva las confirmaciones antes de cambiar estado.
 - Resuelve enlaces explícitos a GitHub Issues, Pull Requests y commits.
-- Resume una sesión mediante un modelo Ollama local.
+- Detecta si Ollama está listo, no tiene modelos o no está disponible, sin
+  instalar ni descargar modelos automáticamente.
+- Resume una sesión mediante un modelo Ollama ya instalado y muestra el
+  Markdown dentro de su ficha, sin persistir el resultado.
 - Genera un relevo Markdown base desde cualquier ficha con metadatos y contexto
   reciente acotado; Ollama sigue disponible como síntesis CLI opcional.
 - Archiva sesiones individualmente o mediante una política configurable.
@@ -134,6 +137,7 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `POST /api/refresh`: inicia un escaneo Codex y Claude Code en segundo plano.
 - `GET|PUT /api/policy`: consulta o actualiza los umbrales locales validados.
 - `GET /api/sources`: disponibilidad y recuento por fuente, sin rutas locales.
+- `GET /api/ollama`: disponibilidad y modelos instalados en el Ollama local.
 - `POST /api/imports/chatgpt/preview`: valida un ZIP o JSON y muestra hasta diez
   conversaciones sin modificar el inventario.
 - `POST /api/imports/chatgpt`: importa tras confirmar `IMPORT_CHATGPT`.
@@ -148,6 +152,8 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
   sesión exacta, sin rutas fuente ni persistencia de mensajes.
 - `GET /api/sessions/{record_key}/handoff`: relevo Markdown base de la sesión
   exacta, sin rutas fuente ni dependencia de Ollama.
+- `POST /api/sessions/{record_key}/summary`: genera un resumen no persistente
+  con un modelo que Ollama ya tenga instalado.
 - `GET /api/blocked`: señales activas y descartadas de posibles bloqueos.
 - `POST /api/sessions/{record_key}/blocked-dismissal`: descarta una señal tras
   confirmar `NOT_BLOCKED`.
@@ -386,9 +392,12 @@ En Linux o macOS, la alternativa equivalente con `cron` es:
 
 ## Resúmenes locales con Ollama
 
-La integración está fijada a `127.0.0.1`; no admite un endpoint remoto. Solo
-extrae mensajes de usuario y asistente, limitados a los últimos 24.000
-caracteres por defecto.
+La integración solo admite el Ollama de la máquina local: `127.0.0.1` en una
+ejecución directa y `host.docker.internal` bajo Compose, siempre en el puerto
+11434. No admite un endpoint remoto. La web declara si el servicio está listo,
+no tiene modelos o no está disponible; nunca ejecuta `ollama pull`. Solo extrae
+mensajes de usuario y asistente, limitados a los últimos 24.000 caracteres por
+defecto. El resumen se renderiza en la ficha y no se guarda en SQLite.
 
 ```powershell
 python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
@@ -448,6 +457,8 @@ transcripción original completa en vez de reducir el contexto.
 - El mantenimiento web no acepta un modo de aplicación: es siempre `dry_run`.
 - El relevo base del dashboard no sale de la API local. Los resúmenes, relevos
   CLI enriquecidos e informes operativos solo se envían al Ollama local.
+- La API valida el endpoint Ollama contra una lista cerrada de hosts locales y
+  solo acepta para resumir modelos anunciados por la instancia instalada.
 - La ficha de actividad se calcula bajo demanda, limita cada fragmento a 500
   caracteres y no guarda su contenido en SQLite.
 - En Compose, Claude Code se monta como solo lectura. Codex se monta con escritura

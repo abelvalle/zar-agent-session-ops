@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.29.0 - Visible local summaries / Resúmenes locales visibles
+
+- ES: muestra si Ollama local está listo, no tiene modelos o no está disponible,
+  y enumera únicamente los modelos ya instalados.
+- EN: shows whether local Ollama is ready, has no models, or is unavailable and
+  lists only already-installed models.
+- ES: genera bajo demanda un resumen Markdown dentro de la ficha de sesión, sin
+  persistirlo y sin instalar ni descargar modelos automáticamente.
+- EN: generates an on-demand Markdown summary inside the session record without
+  persisting it or automatically installing or downloading models.
+- Verificación / Verification: 27 pruebas Python, 7 pruebas Angular, build de
+  producción sin advertencias, auditoría npm, detector de interfaz y stack
+  Docker 0.29 validados.
+- Detalles / Details: [docs/milestones/0.29.0.md](docs/milestones/0.29.0.md).
+
 ## 0.28.0 - Source management and ChatGPT import / Gestión de fuentes e importación ChatGPT
 
 - ES: muestra estado y número de sesiones de Codex, Claude Code, ChatGPT y

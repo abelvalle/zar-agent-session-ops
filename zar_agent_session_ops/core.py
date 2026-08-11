@@ -14,6 +14,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 
@@ -1141,7 +1142,7 @@ def summarize_with_ollama(
         }
     ).encode("utf-8")
     request = Request(
-        "http://127.0.0.1:11434/api/generate",
+        f"{_ollama_base_url()}/api/generate",
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
@@ -1156,10 +1157,47 @@ def summarize_with_ollama(
             detail = str(error)
         raise RuntimeError(f"Ollama error: {detail}") from error
     except URLError as error:
-        raise RuntimeError("Ollama is unavailable at http://127.0.0.1:11434") from error
+        raise RuntimeError("Ollama is unavailable") from error
     if not summary:
         raise RuntimeError("Ollama returned an empty summary")
     return summary
+
+
+def _ollama_base_url() -> str:
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    parsed = urlparse(base_url)
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise RuntimeError("Ollama endpoint must be a local host on port 11434") from error
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname not in {"127.0.0.1", "localhost", "host.docker.internal"}
+        or port not in {None, 11434}
+        or parsed.username
+        or parsed.password
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise RuntimeError("Ollama endpoint must be a local host on port 11434")
+    return base_url
+
+
+def list_ollama_models(timeout: int = 3) -> list[str]:
+    request = Request(f"{_ollama_base_url()}/api/tags", method="GET")
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            payload = json.load(response)
+    except (HTTPError, URLError, OSError, json.JSONDecodeError) as error:
+        raise RuntimeError("Ollama is unavailable") from error
+    models = payload.get("models", []) if isinstance(payload, dict) else []
+    names = {
+        str(model.get("name") or model.get("model") or "").strip()
+        for model in models
+        if isinstance(model, dict)
+    }
+    return sorted(name for name in names if name)
 
 
 def _handoff_header(session: Session) -> str:

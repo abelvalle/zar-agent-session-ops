@@ -387,6 +387,36 @@ h3 {
   margin-block: 12px;
 }
 
+.ollama-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.ollama-status h3,
+.ollama-status p {
+  margin-bottom: 0;
+}
+
+.ollama-status p,
+.summary-heading p,
+.summary-unavailable {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 12px;
+}
+
+.ollama-status > span {
+  flex: none;
+  padding: 6px 10px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .dry-run-badge {
   padding: 6px 10px;
   border: 1px solid var(--mat-sys-outline-variant);
@@ -872,13 +902,16 @@ mat-paginator {
 }
 
 .activity-detail,
-.handoff-detail {
+.handoff-detail,
+.summary-detail {
   padding: 24px;
   border-bottom: 1px solid var(--mat-sys-outline-variant);
 }
 
 .handoff-heading,
-.handoff-actions {
+.handoff-actions,
+.summary-heading,
+.summary-controls {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -888,7 +921,9 @@ mat-paginator {
 .activity-heading h3,
 .activity-heading p,
 .handoff-heading h3,
-.handoff-heading p {
+.handoff-heading p,
+.summary-heading h3,
+.summary-heading p {
   margin-bottom: 0;
 }
 
@@ -1005,6 +1040,38 @@ mat-paginator {
   max-height: 460px;
   margin-top: 16px;
   border-radius: 12px;
+}
+
+.summary-controls label {
+  display: grid;
+  gap: 4px;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.summary-controls select {
+  min-width: 180px;
+  min-height: 36px;
+  padding-inline: 10px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+}
+
+.summary-content {
+  max-height: 460px;
+  margin-top: 20px;
+  border-radius: 12px;
+}
+
+.summary-unavailable {
+  margin: 20px 0 0;
+}
+
+.summary-detail mat-progress-bar {
+  margin-top: 20px;
 }
 
 .handoff-detail mat-progress-bar {
@@ -1326,6 +1393,7 @@ code {
   .activity-detail,
   .decision-detail,
   .handoff-detail,
+  .summary-detail,
   .lifecycle-detail,
   .token-detail,
   .github-detail {
@@ -1352,7 +1420,10 @@ code {
   .lifecycle-result,
   .activity-heading,
   .handoff-heading,
-  .handoff-actions {
+  .handoff-actions,
+  .summary-heading,
+  .summary-controls,
+  .ollama-status {
     align-items: stretch;
     flex-direction: column;
   }

@@ -108,6 +108,18 @@ interface SourcesResponse {
   sources: SourceStatus[];
 }
 
+interface OllamaResponse {
+  status: 'ready' | 'no_models' | 'unavailable';
+  models: string[];
+  local_only: boolean;
+}
+
+interface SessionSummaryResponse {
+  model: string;
+  markdown: string;
+  generated_at: string;
+}
+
 interface ChatGptImportPreview {
   conversation_count: number;
   shown_count: number;
@@ -217,6 +229,7 @@ type HandoffStatus = 'idle' | 'loading' | 'ready';
 type PolicySaveStatus = 'idle' | 'saving' | 'saved';
 type MaintenanceStatus = 'idle' | 'running' | 'completed';
 type ChatGptImportStatus = 'idle' | 'previewing' | 'preview' | 'importing' | 'imported';
+type SummaryStatus = 'idle' | 'loading' | 'ready';
 
 type ReportName = 'weekly' | 'blocked' | 'sessions';
 
@@ -283,6 +296,10 @@ export class App {
   protected readonly chatgptImportPreview = signal<ChatGptImportPreview | null>(null);
   protected readonly chatgptImportResult = signal<ChatGptImportResult | null>(null);
   protected readonly chatgptImportError = signal<string | null>(null);
+  protected readonly summaryModel = signal('');
+  protected readonly summaryStatus = signal<SummaryStatus>('idle');
+  protected readonly summaryMarkdown = signal('');
+  protected readonly summaryError = signal<string | null>(null);
   protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
     { id: 'weekly', label: 'Semanal' },
     { id: 'blocked', label: 'Bloqueos' },
@@ -296,6 +313,7 @@ export class App {
     () => '/api/maintenance/history',
   );
   protected readonly sources = httpResource<SourcesResponse>(() => '/api/sources');
+  protected readonly ollama = httpResource<OllamaResponse>(() => '/api/ollama');
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
   protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
@@ -316,6 +334,9 @@ export class App {
   );
   protected readonly handoffHtml = computed(() =>
     marked.parse(this.handoffMarkdown(), { async: false, gfm: true }),
+  );
+  protected readonly summaryHtml = computed(() =>
+    marked.parse(this.summaryMarkdown(), { async: false, gfm: true }),
   );
   protected readonly usageSummary = computed(() => {
     const unique = new Map<string, AgentSession>();
@@ -463,6 +484,8 @@ export class App {
   protected reloadViews(): void {
     this.health.reload();
     this.liveUsage.reload();
+    this.sources.reload();
+    this.ollama.reload();
     this.inventory.reload();
     this.blocked.reload();
     this.retention.reload();
@@ -543,6 +566,7 @@ export class App {
     this.resetArchiveFlow();
     this.resetBlockReview();
     this.resetHandoff();
+    this.resetSummary();
     this.selectedSession.set(session);
   }
 
@@ -550,7 +574,49 @@ export class App {
     this.resetArchiveFlow();
     this.resetBlockReview();
     this.resetHandoff();
+    this.resetSummary();
     this.selectedSession.set(null);
+  }
+
+  protected setSummaryModel(event: Event): void {
+    this.summaryModel.set((event.target as HTMLSelectElement).value);
+    this.summaryError.set(null);
+  }
+
+  protected generateSummary(session: AgentSession): void {
+    if (this.summaryStatus() === 'loading') {
+      return;
+    }
+    const recordKey = session.record_key;
+    const model = this.summaryModel() || this.ollama.value()?.models[0];
+    if (!model) {
+      this.summaryError.set('No hay un modelo local instalado para generar el resumen.');
+      return;
+    }
+    this.summaryModel.set(model);
+    this.summaryError.set(null);
+    this.summaryStatus.set('loading');
+    this.http
+      .post<SessionSummaryResponse>(`/api/sessions/${recordKey}/summary`, { model })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          if (this.selectedSession()?.record_key !== recordKey) {
+            return;
+          }
+          this.summaryMarkdown.set(result.markdown);
+          this.summaryStatus.set('ready');
+        },
+        error: () => {
+          if (this.selectedSession()?.record_key !== recordKey) {
+            return;
+          }
+          this.summaryError.set(
+            'No se pudo generar el resumen local. Comprueba Ollama y vuelve a intentarlo.',
+          );
+          this.summaryStatus.set('idle');
+        },
+      });
   }
 
   protected generateHandoff(session: AgentSession): void {
@@ -998,6 +1064,12 @@ export class App {
     this.handoffMarkdown.set('');
     this.handoffError.set(null);
     this.handoffCopied.set(false);
+  }
+
+  private resetSummary(): void {
+    this.summaryStatus.set('idle');
+    this.summaryMarkdown.set('');
+    this.summaryError.set(null);
   }
 
   private reloadOperationalViews(): void {

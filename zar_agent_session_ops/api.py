@@ -37,6 +37,7 @@ from .core import (
     load_policy,
     load_sessions,
     latest_codex_usage,
+    list_ollama_models,
     markdown_report,
     maintenance_history,
     policy_candidates,
@@ -49,6 +50,7 @@ from .core import (
     save_policy,
     session_activity,
     sync_sessions,
+    summarize_with_ollama,
     session_key,
     weekly_report,
 )
@@ -373,6 +375,18 @@ def create_app(
     def sources() -> dict[str, object]:
         return source_inventory()
 
+    @app.get("/api/ollama")
+    def ollama() -> dict[str, object]:
+        try:
+            models = list_ollama_models()
+        except RuntimeError:
+            return {"status": "unavailable", "models": [], "local_only": True}
+        return {
+            "status": "ready" if models else "no_models",
+            "models": models,
+            "local_only": True,
+        }
+
     @app.post("/api/imports/chatgpt/preview")
     async def preview_chatgpt_import(request: Request) -> dict[str, object]:
         payload, suffix = await _chatgpt_upload(request)
@@ -514,6 +528,38 @@ def create_app(
                 detail="Activity source is unavailable; refresh the inventory and try again",
             ) from error
         return session_activity(session, transcript)
+
+    @app.post("/api/sessions/{record_key}/summary")
+    def session_summary(
+        record_key: str,
+        model: Annotated[str, Body(embed=True, min_length=1, max_length=200)],
+    ) -> dict[str, object]:
+        try:
+            models = list_ollama_models()
+        except RuntimeError as error:
+            raise HTTPException(status_code=503, detail="Local Ollama is unavailable") from error
+        if not models:
+            raise HTTPException(status_code=409, detail="No local Ollama models are installed")
+        if model not in models:
+            raise HTTPException(status_code=409, detail="Selected Ollama model is not installed")
+        try:
+            session = find_session_by_key(database, record_key)
+            transcript = extract_session_transcript(session)
+            markdown = summarize_with_ollama(transcript, model)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except (FileNotFoundError, OSError, ValueError) as error:
+            raise HTTPException(
+                status_code=422,
+                detail="Summary source is unavailable; refresh the inventory and try again",
+            ) from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+        return {
+            "model": model,
+            "markdown": markdown,
+            "generated_at": datetime.now(timezone.utc),
+        }
 
     @app.post("/api/sessions/{record_key}/blocked-dismissal")
     def dismiss_blocked(

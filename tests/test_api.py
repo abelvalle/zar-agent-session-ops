@@ -14,6 +14,93 @@ from zar_agent_session_ops.core import Session, TokenUsage, scan_codex, sync_ses
 
 
 class ApiTest(unittest.TestCase):
+    def test_reports_ollama_state_and_generates_with_an_installed_model(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "sessions.db"
+            source = root / "session.jsonl"
+            source.write_text(
+                "\n".join(
+                    json.dumps(item)
+                    for item in (
+                        {
+                            "timestamp": "2026-08-11T10:00:00Z",
+                            "type": "session_meta",
+                            "payload": {"id": "summary-session", "cwd": "D:/repo"},
+                        },
+                        {
+                            "timestamp": "2026-08-11T10:01:00Z",
+                            "type": "response_item",
+                            "payload": {
+                                "role": "user",
+                                "content": [{"type": "input_text", "text": "Fix the parser"}],
+                            },
+                        },
+                    )
+                ),
+                encoding="utf-8",
+            )
+            sync_sessions(
+                database,
+                [
+                    Session(
+                        session_id="summary-session",
+                        agent="codex",
+                        path=source,
+                        repository="D:/repo",
+                        started_at=datetime(2026, 8, 11, 10, tzinfo=timezone.utc),
+                        last_activity_at=datetime(2026, 8, 11, 10, 1, tzinfo=timezone.utc),
+                        size_bytes=source.stat().st_size,
+                        event_count=2,
+                        title="Fix the parser",
+                    )
+                ],
+            )
+
+            with TestClient(create_app(database, root / "config.toml", root)) as client:
+                record_key = client.get("/api/sessions").json()["sessions"][0]["record_key"]
+                with patch(
+                    "zar_agent_session_ops.api.list_ollama_models", return_value=[]
+                ):
+                    self.assertEqual("no_models", client.get("/api/ollama").json()["status"])
+                    rejected = client.post(
+                        f"/api/sessions/{record_key}/summary",
+                        json={"model": "qwen3:8b"},
+                    )
+                self.assertEqual(409, rejected.status_code)
+
+                with (
+                    patch(
+                        "zar_agent_session_ops.api.list_ollama_models",
+                        return_value=["qwen3:8b"],
+                    ),
+                    patch(
+                        "zar_agent_session_ops.api.summarize_with_ollama",
+                        return_value="# Local summary\n\nParser work reviewed.",
+                    ) as summarize,
+                ):
+                    state = client.get("/api/ollama").json()
+                    response = client.post(
+                        f"/api/sessions/{record_key}/summary",
+                        json={"model": "qwen3:8b"},
+                    )
+                self.assertEqual(
+                    {"status": "ready", "models": ["qwen3:8b"], "local_only": True},
+                    state,
+                )
+                self.assertEqual(200, response.status_code)
+                self.assertEqual("qwen3:8b", response.json()["model"])
+                self.assertIn("# Local summary", response.json()["markdown"])
+                self.assertIn("Fix the parser", summarize.call_args.args[0])
+
+                with patch(
+                    "zar_agent_session_ops.api.list_ollama_models",
+                    side_effect=RuntimeError("offline"),
+                ):
+                    self.assertEqual(
+                        "unavailable", client.get("/api/ollama").json()["status"]
+                    )
+
     def test_previews_and_confirms_a_chatgpt_export_upload(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -191,7 +278,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.28.0"},
+                    {"status": "ok", "version": "0.29.0"},
                     client.get("/api/health").json(),
                 )
                 self.assertEqual("unavailable", client.get("/api/usage").json()["status"])
@@ -346,11 +433,13 @@ class ApiTest(unittest.TestCase):
                         "/api/maintenance/history",
                         "/api/maintenance/preview",
                         "/api/sources",
+                        "/api/ollama",
                         "/api/imports/chatgpt/preview",
                         "/api/imports/chatgpt",
                         "/api/sessions",
                         "/api/sessions/{record_key}/handoff",
                         "/api/sessions/{record_key}/activity",
+                        "/api/sessions/{record_key}/summary",
                         "/api/blocked",
                         "/api/blocked-dismissals/{record_key}/restore",
                         "/api/archives",

@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.28.0` exposes Codex, Claude Code, ChatGPT, and OpenCode source status and
-previews then confirms an official ChatGPT export from the web UI.
+`0.29.0` shows the actual Ollama state, detects installed models, and generates
+and renders a local summary inside a session record.
 
 ## Available features
 
@@ -45,7 +45,10 @@ previews then confirms an official ChatGPT export from the web UI.
 - Combines metadata, activity, and signals in a visible decision flow; blocked
   signals take priority over retention, and state changes keep confirmation.
 - Resolves explicit GitHub Issue, Pull Request, and commit links.
-- Summarizes a session with a local Ollama model.
+- Detects whether Ollama is ready, has no models, or is unavailable without
+  automatically installing or downloading models.
+- Summarizes a session with an already-installed Ollama model and renders the
+  Markdown in its record without persisting the result.
 - Generates a base Markdown handoff from any record using metadata and bounded
   recent context; Ollama remains an optional CLI synthesis path.
 - Archives individual sessions or applies a configurable retention policy.
@@ -128,6 +131,7 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `POST /api/refresh`: starts a background Codex and Claude Code scan.
 - `GET|PUT /api/policy`: reads or updates validated local thresholds.
 - `GET /api/sources`: source availability and counts without local paths.
+- `GET /api/ollama`: local Ollama availability and installed models.
 - `POST /api/imports/chatgpt/preview`: validates a ZIP or JSON and shows up to
   ten conversations without changing inventory.
 - `POST /api/imports/chatgpt`: imports after `IMPORT_CHATGPT` confirmation.
@@ -142,6 +146,8 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
   exact session, without source paths or message persistence.
 - `GET /api/sessions/{record_key}/handoff`: base Markdown handoff for the exact
   session, without source paths or an Ollama dependency.
+- `POST /api/sessions/{record_key}/summary`: generates a non-persistent summary
+  with a model already installed in Ollama.
 - `GET /api/blocked`: active and dismissed potentially blocked signals.
 - `POST /api/sessions/{record_key}/blocked-dismissal`: dismisses a signal after
   `NOT_BLOCKED` confirmation.
@@ -374,9 +380,12 @@ On Linux or macOS, the equivalent `cron` entry is:
 
 ## Local Ollama summaries
 
-The integration is pinned to `127.0.0.1`; remote endpoints are not accepted.
-Only user and assistant messages are extracted, capped at the latest 24,000
-characters by default.
+The integration accepts only the local machine's Ollama: `127.0.0.1` for direct
+runs and `host.docker.internal` under Compose, always on port 11434. Remote
+endpoints are rejected. The web reports ready, no-model, and unavailable states
+and never runs `ollama pull`. Only user and assistant messages are extracted,
+capped at the latest 24,000 characters by default. The record renders the
+summary without storing it in SQLite.
 
 ```powershell
 python -m zar_agent_session_ops summarize SESSION_ID --model qwen3:8b
@@ -436,6 +445,8 @@ complete original transcript instead of reducing context.
 - Web maintenance exposes no apply mode: it is always `dry_run`.
 - The dashboard's base handoff stays inside the local API. Summaries, enriched
   CLI handoffs, and operational digests are sent only to local Ollama.
+- The API validates the Ollama endpoint against a closed list of local hosts and
+  only summarizes with models advertised by the installed instance.
 - The activity record is computed on demand, caps each excerpt at 500
   characters, and does not store its content in SQLite.
 - Under Compose, Claude Code remains read-only. Codex is writable only so the API
