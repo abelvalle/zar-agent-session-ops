@@ -637,6 +637,89 @@
           }
         </section>
 
+        <section class="decision-detail" aria-labelledby="decision-title">
+          <div>
+            <h3 id="decision-title">Flujo de decisión</h3>
+            <p>Revisa la evidencia antes de continuar, descartar una señal o archivar.</p>
+          </div>
+          <div class="decision-steps">
+            <article>
+              <span>1 · Revisar</span>
+              <strong>Ficha y señales cargadas</strong>
+              <p>
+                {{ selected.event_count | number: '1.0-0' }} eventos; último tipo
+                {{ selected.last_event_type || 'no disponible' }}.
+              </p>
+            </article>
+            <article>
+              <span>2 · Entender</span>
+              @if (activity.value(); as currentActivity) {
+                <strong>{{ currentActivity.objective }}</strong>
+                <p>
+                  {{
+                    currentActivity.pending_request ||
+                      currentActivity.latest_outcome ||
+                      'Sin mensajes locales legibles.'
+                  }}
+                </p>
+              } @else {
+                <strong>Actividad no disponible</strong>
+                <p>La decisión se limitará a los metadatos de ciclo de vida.</p>
+              }
+            </article>
+            <article>
+              <span>3 · Decidir</span>
+              @if (isBlockedCandidate(selected)) {
+                <strong>Revisar posible bloqueo</strong>
+                <p>
+                  `task_started` sin cierre durante
+                  {{ blocked.value()?.threshold_hours ?? 24 }} horas o más.
+                </p>
+                <div class="decision-actions">
+                  <button mat-stroked-button type="button" (click)="generateHandoff(selected)">
+                    Continuar con relevo
+                  </button>
+                  <button mat-button type="button" (click)="prepareBlockDismissal()">
+                    Descartar falsa señal
+                  </button>
+                </div>
+              } @else if (isRetentionCandidate(selected)) {
+                <strong>Revisar archivado</strong>
+                <p>
+                  Sin actividad durante {{ retention.value()?.archive_after_days ?? 30 }} días o
+                  más; la revisión previa no mueve archivos.
+                </p>
+                <div class="decision-actions">
+                  <button mat-stroked-button type="button" (click)="generateHandoff(selected)">
+                    Continuar con relevo
+                  </button>
+                  <button
+                    mat-button
+                    type="button"
+                    [disabled]="archiveStatus() !== 'idle'"
+                    (click)="prepareArchive(selected)"
+                  >
+                    Revisar archivado
+                  </button>
+                </div>
+              } @else {
+                <strong>Continuar con contexto mínimo</strong>
+                <p>No hay una señal de bloqueo o retención que resolver primero.</p>
+                <div class="decision-actions">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    [disabled]="handoffStatus() === 'loading'"
+                    (click)="generateHandoff(selected)"
+                  >
+                    {{ handoffStatus() === 'loading' ? 'Preparando…' : 'Continuar con relevo' }}
+                  </button>
+                </div>
+              }
+            </article>
+          </div>
+        </section>
+
         <section class="handoff-detail" aria-labelledby="handoff-title">
           <div class="handoff-heading">
             <div>

@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.25.0` turns each record into an actionable reading: objective, latest
-outcome, pending request, recent activity, and next step from local evidence.
+`0.26.0` completes the `Review → Understand → Decide` flow in each record and
+offers justified actions to continue, dismiss a false block, or review archiving.
 
 ## Available features
 
@@ -38,6 +38,8 @@ outcome, pending request, recent activity, and next step from local evidence.
   GitHub relationships; the record remains useful when no GitHub links exist.
 - Reads up to six recent excerpts on demand and shows objective, latest outcome,
   pending request, and next action without storing the transcript.
+- Combines metadata, activity, and signals in a visible decision flow; blocked
+  signals take priority over retention, and state changes keep confirmation.
 - Resolves explicit GitHub Issue, Pull Request, and commit links.
 - Summarizes a session with a local Ollama model.
 - Generates a base Markdown handoff from any record using metadata and bounded

@@ -792,6 +792,50 @@ mat-paginator {
   color: var(--mat-sys-on-surface-variant);
 }
 
+.decision-detail {
+  padding: 24px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container);
+}
+
+.decision-detail h3,
+.decision-detail p {
+  margin-bottom: 0;
+}
+
+.decision-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.decision-steps article {
+  min-width: 0;
+}
+
+.decision-steps span,
+.decision-steps strong {
+  display: block;
+}
+
+.decision-steps span,
+.decision-steps p {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 12px;
+}
+
+.decision-steps strong {
+  margin-top: 6px;
+}
+
+.decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 .handoff-actions {
   justify-content: flex-start;
   margin-top: 20px;
@@ -1061,7 +1105,8 @@ code {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .activity-summary {
+  .activity-summary,
+  .decision-steps {
     grid-template-columns: 1fr;
   }
 
@@ -1108,6 +1153,7 @@ code {
   .usage-limit,
   .usage-totals,
   .activity-detail,
+  .decision-detail,
   .handoff-detail,
   .lifecycle-detail,
   .token-detail,

@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.25.0` convierte cada
-ficha en una lectura accionable: objetivo, último resultado, petición pendiente,
-actividad reciente y siguiente paso basados en evidencia local.
+sesiones locales de agentes de programación. La versión `0.26.0` completa en
+cada ficha el flujo `Revisar → Entender → Decidir` y ofrece acciones justificadas
+para continuar, descartar un falso bloqueo o revisar el archivado.
 
 ## Funciones disponibles
 
@@ -40,6 +40,8 @@ actividad reciente y siguiente paso basados en evidencia local.
   GitHub; el detalle conserva valor aunque no existan referencias GitHub.
 - Lee bajo demanda hasta seis fragmentos recientes y muestra objetivo, último
   resultado, petición pendiente y siguiente acción sin guardar el transcript.
+- Une metadatos, actividad y señales en un flujo de decisión visible; prioriza
+  bloqueos sobre retención y conserva las confirmaciones antes de cambiar estado.
 - Resuelve enlaces explícitos a GitHub Issues, Pull Requests y commits.
 - Resume una sesión mediante un modelo Ollama local.
 - Genera un relevo Markdown base desde cualquier ficha con metadatos y contexto

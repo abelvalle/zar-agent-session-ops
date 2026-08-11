@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.26.0 - Complete decision flow / Flujo completo de decisión
+
+- ES: reúne en la ficha tres pasos explícitos: revisar metadatos y señales,
+  entender la actividad reciente y decidir con una razón visible.
+- EN: brings three explicit steps into the record: review metadata and signals,
+  understand recent activity, and decide with a visible reason.
+- ES: permite preparar continuidad, descartar un falso bloqueo o revisar el
+  archivado desde el mismo flujo; las confirmaciones existentes siguen vigentes.
+- EN: prepares continuation, dismisses a false block, or reviews archiving from
+  the same flow; existing confirmations remain in force.
+- Verificación / Verification: 25 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.26 validados.
+- Detalles / Details: [docs/milestones/0.26.0.md](docs/milestones/0.26.0.md).
+
 ## 0.25.0 - Actionable activity record / Ficha de actividad accionable
 
 - ES: añade a cada ficha el objetivo, último resultado, petición pendiente,

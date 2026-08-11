@@ -128,7 +128,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.25.0"},
+                    {"status": "ok", "version": "0.26.0"},
                     client.get("/api/health").json(),
                 )
                 self.assertEqual("unavailable", client.get("/api/usage").json()["status"])
