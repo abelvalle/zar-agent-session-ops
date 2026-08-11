@@ -1,6 +1,8 @@
 import json
+import io
 import tempfile
 import unittest
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +14,67 @@ from zar_agent_session_ops.core import Session, TokenUsage, scan_codex, sync_ses
 
 
 class ApiTest(unittest.TestCase):
+    def test_previews_and_confirms_a_chatgpt_export_upload(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "sessions.db"
+            sync_sessions(database, [])
+            conversation = {
+                "id": "chatgpt-upload-1",
+                "conversation_id": "chatgpt-upload-1",
+                "title": "Imported from web",
+                "create_time": 1_754_300_000,
+                "update_time": 1_754_300_100,
+                "mapping": {},
+            }
+            export = io.BytesIO()
+            with zipfile.ZipFile(export, "w") as archive:
+                archive.writestr("conversations.json", json.dumps([conversation]))
+            payload = export.getvalue()
+            headers = {
+                "content-type": "application/octet-stream",
+                "x-filename": "chatgpt-export.zip",
+            }
+
+            with TestClient(
+                create_app(database, root / "config.toml", root / "codex", root / "claude")
+            ) as client:
+                before = client.get("/api/sources").json()["sources"]
+                chatgpt_before = next(item for item in before if item["id"] == "chatgpt")
+                self.assertEqual("awaiting_import", chatgpt_before["status"])
+
+                preview = client.post(
+                    "/api/imports/chatgpt/preview", content=payload, headers=headers
+                )
+                self.assertEqual(200, preview.status_code)
+                self.assertEqual(1, preview.json()["conversation_count"])
+                self.assertEqual("Imported from web", preview.json()["conversations"][0]["title"])
+                self.assertEqual(0, client.get("/api/sessions").json()["count"])
+                self.assertFalse((root / "chatgpt-imports").exists())
+
+                rejected = client.post(
+                    "/api/imports/chatgpt", content=payload, headers=headers
+                )
+                self.assertEqual(422, rejected.status_code)
+                imported = client.post(
+                    "/api/imports/chatgpt",
+                    content=payload,
+                    headers={**headers, "x-confirmation": "IMPORT_CHATGPT"},
+                )
+                self.assertEqual(200, imported.status_code)
+                self.assertEqual(1, imported.json()["imported_count"])
+                self.assertTrue(imported.json()["stored_locally"])
+                inventory = client.get("/api/sessions").json()
+                self.assertEqual(1, inventory["count"])
+                self.assertEqual("chatgpt", inventory["sessions"][0]["agent"])
+                self.assertNotIn(str(root), imported.text)
+                stored = list((root / "chatgpt-imports").glob("*.zip"))
+                self.assertEqual(1, len(stored))
+                after = client.get("/api/sources").json()["sources"]
+                chatgpt_after = next(item for item in after if item["id"] == "chatgpt")
+                self.assertEqual("imported", chatgpt_after["status"])
+                self.assertEqual(1, chatgpt_after["session_count"])
+
     def test_live_usage_reads_the_latest_local_event_without_exposing_its_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -128,7 +191,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.27.0"},
+                    {"status": "ok", "version": "0.28.0"},
                     client.get("/api/health").json(),
                 )
                 self.assertEqual("unavailable", client.get("/api/usage").json()["status"])
@@ -282,6 +345,9 @@ class ApiTest(unittest.TestCase):
                         "/api/policy",
                         "/api/maintenance/history",
                         "/api/maintenance/preview",
+                        "/api/sources",
+                        "/api/imports/chatgpt/preview",
+                        "/api/imports/chatgpt",
                         "/api/sessions",
                         "/api/sessions/{record_key}/handoff",
                         "/api/sessions/{record_key}/activity",

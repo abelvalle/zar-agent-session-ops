@@ -314,12 +314,77 @@ h3 {
   border-left: 1px solid var(--mat-sys-outline-variant);
 }
 
-.maintenance {
+.maintenance,
+.sources {
   margin-top: 28px;
   overflow: hidden;
   border: 1px solid var(--mat-sys-outline-variant);
   border-radius: 16px;
   background: var(--mat-sys-surface-container-lowest);
+}
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.source-grid article {
+  min-width: 0;
+  padding: 20px 24px;
+}
+
+.source-grid article + article {
+  border-left: 1px solid var(--mat-sys-outline-variant);
+}
+
+.source-grid span,
+.source-grid strong {
+  display: block;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 12px;
+}
+
+.source-grid h3 {
+  margin: 6px 0;
+}
+
+.chatgpt-import {
+  padding: 24px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  background: var(--mat-sys-surface-container);
+}
+
+.chatgpt-import h3,
+.chatgpt-import p {
+  margin-bottom: 0;
+}
+
+.chatgpt-import-controls {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.chatgpt-import-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.chatgpt-preview {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  background: var(--mat-sys-surface);
+}
+
+.chatgpt-preview ul {
+  margin-block: 12px;
 }
 
 .dry-run-badge {
@@ -1174,6 +1239,7 @@ code {
   .attention-columns,
   .usage-columns,
   .maintenance-grid,
+  .source-grid,
   .message {
     grid-template-columns: 1fr;
   }
@@ -1189,6 +1255,11 @@ code {
   }
 
   .maintenance-grid > article + article {
+    border-left: 0;
+  }
+
+  .source-grid article + article {
+    border-top: 1px solid var(--mat-sys-outline-variant);
     border-left: 0;
   }
 
@@ -1282,6 +1353,11 @@ code {
   .activity-heading,
   .handoff-heading,
   .handoff-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .chatgpt-import-controls {
     align-items: stretch;
     flex-direction: column;
   }

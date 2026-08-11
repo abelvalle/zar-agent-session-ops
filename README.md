@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.27.0` permite ajustar
-los umbrales desde la web y ejecutar simulaciones de mantenimiento con historial
-local, siempre sin mover archivos.
+sesiones locales de agentes de programación. La versión `0.28.0` hace visibles
+las fuentes Codex, Claude Code, ChatGPT y OpenCode, y permite analizar y confirmar
+una exportación oficial de ChatGPT desde la propia web.
 
 ## Funciones disponibles
 
@@ -58,6 +58,10 @@ local, siempre sin mover archivos.
 - Simula cualquier archivado salvo que se indique `--apply`.
 - Importa metadatos y transcripciones bajo demanda desde un ZIP o JSON oficial
   de ChatGPT sin copiar las conversaciones a la base propia.
+- Muestra disponibilidad y número de sesiones por fuente; OpenCode declara
+  expresamente su estado aún no configurado.
+- Analiza una exportación ChatGPT antes de importarla, exige una segunda
+  confirmación y conserva una copia local gestionada para consultas posteriores.
 - Empaqueta la API y el dashboard en un stack local reproducible con Docker
   Compose.
 - Actualiza Codex y el registro de Claude Code mediante un escaneo incremental
@@ -129,6 +133,10 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `GET /api/refresh`: estado del último escaneo solicitado.
 - `POST /api/refresh`: inicia un escaneo Codex y Claude Code en segundo plano.
 - `GET|PUT /api/policy`: consulta o actualiza los umbrales locales validados.
+- `GET /api/sources`: disponibilidad y recuento por fuente, sin rutas locales.
+- `POST /api/imports/chatgpt/preview`: valida un ZIP o JSON y muestra hasta diez
+  conversaciones sin modificar el inventario.
+- `POST /api/imports/chatgpt`: importa tras confirmar `IMPORT_CHATGPT`.
 - `POST /api/maintenance/preview`: ejecuta y registra una simulación sin mover
   archivos.
 - `GET /api/maintenance/history`: últimas diez simulaciones registradas.
@@ -426,6 +434,8 @@ transcripción original completa en vez de reducir el contexto.
   originales.
 - La base propia contiene metadatos, no transcripciones.
 - Las conversaciones ChatGPT permanecen dentro del ZIP o JSON original.
+- En la importación web, la copia gestionada permanece en el almacenamiento
+  local de la aplicación; SQLite conserva solo sus metadatos.
 - Los registros JSON de Claude Code solo se leen y no se copian como
   transcripciones.
 - El proyecto no consulta las bases SQLite internas de Codex.

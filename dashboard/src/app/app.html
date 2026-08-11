@@ -418,6 +418,85 @@
       </div>
     </section>
 
+    <section class="sources" aria-labelledby="sources-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="sources-title">Fuentes de sesiones</h2>
+          <p>Comprueba qué agentes aportan datos y añade una exportación oficial de ChatGPT.</p>
+        </div>
+      </div>
+
+      <div class="source-grid">
+        @for (source of sources.value()?.sources ?? []; track source.id) {
+          <article>
+            <span>{{ sourceStatusLabel(source.status) }}</span>
+            <h3>{{ source.label }}</h3>
+            <strong>{{ source.session_count | number: '1.0-0' }} sesiones</strong>
+          </article>
+        }
+      </div>
+
+      <div class="chatgpt-import">
+        <div>
+          <h3>Importar exportación ChatGPT</h3>
+          <p>
+            Selecciona el ZIP oficial o un JSON de conversaciones. Primero se analiza; importar
+            requiere una confirmación posterior.
+          </p>
+        </div>
+        <div class="chatgpt-import-controls">
+          <label>
+            Archivo de exportación
+            <input type="file" accept=".zip,.json" (change)="selectChatgptFile($event)" />
+          </label>
+          <button
+            mat-stroked-button
+            type="button"
+            [disabled]="!chatgptFile() || chatgptImportStatus() === 'previewing'"
+            (click)="previewChatgptImport()"
+          >
+            {{ chatgptImportStatus() === 'previewing' ? 'Analizando…' : 'Analizar exportación' }}
+          </button>
+        </div>
+
+        @if (chatgptImportPreview(); as preview) {
+          <div class="chatgpt-preview">
+            <strong>{{ preview.conversation_count }} conversaciones encontradas</strong>
+            <ul>
+              @for (conversation of preview.conversations; track conversation.id) {
+                <li>
+                  {{ conversation.title || 'Conversación sin título' }} ·
+                  {{ conversation.event_count | number: '1.0-0' }} eventos
+                </li>
+              }
+            </ul>
+            <p>
+              Confirmar guarda una copia local de la exportación para que sus fichas sigan siendo
+              consultables. Las conversaciones no se copian a SQLite.
+            </p>
+            <button
+              mat-flat-button
+              type="button"
+              [disabled]="chatgptImportStatus() === 'importing'"
+              (click)="confirmChatgptImport()"
+            >
+              {{ chatgptImportStatus() === 'importing' ? 'Importando…' : 'Confirmar importación' }}
+            </button>
+          </div>
+        }
+
+        @if (chatgptImportResult(); as result) {
+          <p class="maintenance-result" role="status">
+            {{ result.imported_count }} conversaciones añadidas; ChatGPT suma
+            {{ result.total_chatgpt_sessions }} sesiones locales.
+          </p>
+        }
+        @if (chatgptImportError()) {
+          <p class="lifecycle-error" role="alert">{{ chatgptImportError() }}</p>
+        }
+      </div>
+    </section>
+
     <section class="reports" aria-labelledby="reports-title">
       <div class="section-heading report-heading">
         <div>

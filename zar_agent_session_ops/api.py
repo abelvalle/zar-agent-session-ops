@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import logging
 import os
+import hashlib
+import json
+import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 from time import perf_counter
 from typing import Annotated, Literal
 
-from fastapi import BackgroundTasks, Body, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request
 from fastapi.responses import Response
 
 from . import __version__
@@ -40,6 +44,7 @@ from .core import (
     restore_archived_session,
     restore_blocked_candidate,
     scan_claude,
+    scan_chatgpt_export,
     scan_codex,
     save_policy,
     session_activity,
@@ -52,6 +57,39 @@ from .github import session_github_references
 
 LOGGER = logging.getLogger(__name__)
 USAGE_STALE_AFTER_SECONDS = 15 * 60
+CHATGPT_UPLOAD_MAX_BYTES = 100 * 1024 * 1024
+CHATGPT_EXPANDED_MAX_BYTES = 500 * 1024 * 1024
+
+
+async def _chatgpt_upload(request: Request) -> tuple[bytes, str]:
+    filename = request.headers.get("x-filename", "").strip()
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".zip", ".json"}:
+        raise HTTPException(status_code=422, detail="Upload a ChatGPT ZIP or JSON export")
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > CHATGPT_UPLOAD_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="ChatGPT export exceeds 100 MiB")
+        chunks.append(chunk)
+    if size == 0:
+        raise HTTPException(status_code=422, detail="ChatGPT export is empty")
+    return b"".join(chunks), suffix
+
+
+def _validate_chatgpt_archive(path: Path) -> None:
+    if not zipfile.is_zipfile(path):
+        return
+    with zipfile.ZipFile(path) as archive:
+        expanded = sum(
+            item.file_size
+            for item in archive.infolist()
+            if Path(item.filename).name.lower().startswith("conversations")
+            and Path(item.filename).suffix.lower() == ".json"
+        )
+    if expanded > CHATGPT_EXPANDED_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Expanded ChatGPT conversations exceed 500 MiB")
 
 
 def _usage_data(usage: TokenUsage) -> dict[str, object]:
@@ -108,6 +146,50 @@ def create_app(
         "finished_at": None,
         "error": None,
     }
+    chatgpt_import_dir = config.parent / "chatgpt-imports"
+
+    def source_inventory() -> dict[str, object]:
+        items = load_sessions(database)
+        counts = {
+            agent: sum(item.agent == agent for item in items)
+            for agent in ("codex", "claude", "chatgpt")
+        }
+        return {
+            "sources": [
+                {
+                    "id": "codex",
+                    "label": "Codex",
+                    "status": "available" if source.is_dir() else "unavailable",
+                    "session_count": counts["codex"],
+                    "import_supported": False,
+                },
+                {
+                    "id": "claude",
+                    "label": "Claude Code",
+                    "status": (
+                        "available"
+                        if (claude_source / "sessions").is_dir()
+                        else "unavailable"
+                    ),
+                    "session_count": counts["claude"],
+                    "import_supported": False,
+                },
+                {
+                    "id": "chatgpt",
+                    "label": "ChatGPT",
+                    "status": "imported" if counts["chatgpt"] else "awaiting_import",
+                    "session_count": counts["chatgpt"],
+                    "import_supported": True,
+                },
+                {
+                    "id": "opencode",
+                    "label": "OpenCode",
+                    "status": "not_configured",
+                    "session_count": 0,
+                    "import_supported": False,
+                },
+            ]
+        }
 
     def archive_candidate(record_key: str) -> tuple[Session, Policy]:
         policy = load_policy(config)
@@ -286,6 +368,69 @@ def create_app(
     def maintenance_runs() -> dict[str, object]:
         runs = maintenance_history(database)
         return {"count": len(runs), "runs": runs}
+
+    @app.get("/api/sources")
+    def sources() -> dict[str, object]:
+        return source_inventory()
+
+    @app.post("/api/imports/chatgpt/preview")
+    async def preview_chatgpt_import(request: Request) -> dict[str, object]:
+        payload, suffix = await _chatgpt_upload(request)
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / f"upload{suffix}"
+                path.write_bytes(payload)
+                _validate_chatgpt_archive(path)
+                sessions = scan_chatgpt_export(path)
+        except (OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError) as error:
+            raise HTTPException(status_code=422, detail="Invalid ChatGPT export") from error
+        return {
+            "conversation_count": len(sessions),
+            "conversations": [
+                {
+                    "id": item.session_id,
+                    "title": item.title,
+                    "last_activity_at": item.last_activity_at,
+                    "event_count": item.event_count,
+                }
+                for item in sessions[:10]
+            ],
+            "shown_count": min(10, len(sessions)),
+            "confirmation": "IMPORT_CHATGPT",
+        }
+
+    @app.post("/api/imports/chatgpt")
+    async def import_chatgpt(request: Request) -> dict[str, object]:
+        if request.headers.get("x-confirmation") != "IMPORT_CHATGPT":
+            raise HTTPException(status_code=422, detail="IMPORT_CHATGPT confirmation required")
+        payload, suffix = await _chatgpt_upload(request)
+        digest = hashlib.sha256(payload).hexdigest()
+        chatgpt_import_dir.mkdir(parents=True, exist_ok=True)
+        path = chatgpt_import_dir / f"{digest}{suffix}"
+        created = not path.exists()
+        try:
+            if created:
+                temporary = path.with_suffix(path.suffix + ".tmp")
+                temporary.write_bytes(payload)
+                temporary.replace(path)
+            _validate_chatgpt_archive(path)
+            imported = scan_chatgpt_export(path)
+            all_sessions: dict[str, Session] = {}
+            for stored_export in sorted(chatgpt_import_dir.iterdir()):
+                if stored_export.suffix.lower() not in {".zip", ".json"}:
+                    continue
+                for session in scan_chatgpt_export(stored_export):
+                    all_sessions[session.session_id] = session
+            sync_sessions(database, list(all_sessions.values()), agent="chatgpt")
+        except (OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError) as error:
+            if created:
+                path.unlink(missing_ok=True)
+            raise HTTPException(status_code=422, detail="Invalid ChatGPT export") from error
+        return {
+            "imported_count": len(imported),
+            "total_chatgpt_sessions": len(all_sessions),
+            "stored_locally": True,
+        }
 
     @app.post("/api/maintenance/preview")
     def maintenance_preview() -> dict[str, object]:

@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.27.0` edits policy thresholds in the web UI and runs maintenance previews
-with local history, always without moving files.
+`0.28.0` exposes Codex, Claude Code, ChatGPT, and OpenCode source status and
+previews then confirms an official ChatGPT export from the web UI.
 
 ## Available features
 
@@ -56,6 +56,10 @@ with local history, always without moving files.
 - Simulates every archive operation unless `--apply` is supplied.
 - Imports metadata and on-demand transcripts from an official ChatGPT ZIP or
   JSON without copying conversations into the application database.
+- Shows availability and session count per source; OpenCode explicitly reports
+  its not-yet-configured state.
+- Previews a ChatGPT export before importing, requires a second confirmation,
+  and keeps a managed local copy for later on-demand reads.
 - Packages the API and dashboard as a reproducible local Docker Compose stack.
 - Refreshes Codex and the Claude Code registry through an incremental,
   non-blocking scan and reports duration, changed records, and reused metadata.
@@ -123,6 +127,10 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `GET /api/refresh`: state of the latest requested scan.
 - `POST /api/refresh`: starts a background Codex and Claude Code scan.
 - `GET|PUT /api/policy`: reads or updates validated local thresholds.
+- `GET /api/sources`: source availability and counts without local paths.
+- `POST /api/imports/chatgpt/preview`: validates a ZIP or JSON and shows up to
+  ten conversations without changing inventory.
+- `POST /api/imports/chatgpt`: imports after `IMPORT_CHATGPT` confirmation.
 - `POST /api/maintenance/preview`: runs and records a preview without moving
   files.
 - `GET /api/maintenance/history`: returns the latest ten recorded previews.
@@ -415,6 +423,8 @@ complete original transcript instead of reducing context.
   files.
 - The application database contains metadata, not transcripts.
 - ChatGPT conversations remain in the original ZIP or JSON.
+- Web imports keep a managed copy in local application storage; SQLite stores
+  metadata only.
 - Claude Code registry JSON is read only and is not copied as transcripts.
 - The project does not query Codex's internal SQLite databases.
 - The API is loopback-bound and omits source-file paths. Refresh rewrites only

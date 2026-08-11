@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.27.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({
@@ -49,7 +49,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.27.0');
+    expect(page.textContent).toContain('API 0.28.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -137,6 +137,88 @@ describe('App', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     expect(page.textContent).toContain('No se movió ningún archivo');
+    expect(page.textContent).toContain('Fuentes de sesiones');
+    expect(page.textContent).toContain('Importar exportación ChatGPT');
+    expect(page.textContent).toContain('OpenCode');
+    expect(page.textContent).toContain('No configurada');
+    const exportFile = new File(['[]'], 'chatgpt-export.json', {
+      type: 'application/json',
+    });
+    Object.defineProperty(exportFile, 'arrayBuffer', {
+      value: async () => new TextEncoder().encode('[]').buffer,
+    });
+    const exportInput = page.querySelector<HTMLInputElement>('.chatgpt-import input[type="file"]')!;
+    Object.defineProperty(exportInput, 'files', { value: [exportFile] });
+    exportInput.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Analizar exportación'))
+      ?.click();
+    await new Promise((resolve) => setTimeout(resolve));
+    const importPreview = http.expectOne('/api/imports/chatgpt/preview');
+    expect(importPreview.request.headers.get('X-Filename')).toBe('chatgpt-export.json');
+    importPreview.flush({
+      conversation_count: 1,
+      shown_count: 1,
+      confirmation: 'IMPORT_CHATGPT',
+      conversations: [
+        {
+          id: 'chatgpt-1',
+          title: 'Imported conversation',
+          last_activity_at: '2026-08-11T20:00:00Z',
+          event_count: 4,
+        },
+      ],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.textContent).toContain('1 conversaciones encontradas');
+    [...page.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.includes('Confirmar importación'))
+      ?.click();
+    await new Promise((resolve) => setTimeout(resolve));
+    const importRequest = http.expectOne('/api/imports/chatgpt');
+    expect(importRequest.request.headers.get('X-Confirmation')).toBe('IMPORT_CHATGPT');
+    importRequest.flush({
+      imported_count: 1,
+      total_chatgpt_sessions: 1,
+      stored_locally: true,
+    });
+    await new Promise((resolve) => setTimeout(resolve));
+    http.expectOne('/api/sources').flush({
+      sources: [
+        {
+          id: 'chatgpt',
+          label: 'ChatGPT',
+          status: 'imported',
+          session_count: 1,
+          import_supported: true,
+        },
+      ],
+    });
+    http.expectOne('/api/sessions').flush({
+      count: 3,
+      sessions: [
+        session('active-id', 'Build dashboard', 'active'),
+        session('archived-id', 'Old work', 'archived'),
+        session('claude-id', 'Claude work', 'registered', 'claude'),
+      ],
+    });
+    http.expectOne('/api/blocked').flush({
+      count: 1,
+      threshold_hours: 12,
+      sessions: [session('active-id', 'Build dashboard', 'active')],
+    });
+    http.expectOne('/api/retention').flush({
+      count: 1,
+      archive_after_days: 45,
+      sessions: [session('active-id', 'Build dashboard', 'active')],
+    });
+    http.expectOne('/api/archives').flush({ count: 0, archives: [] });
+    http.expectOne('/api/reports/weekly').flush('# Weekly report');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(page.textContent).toContain('1 conversaciones añadidas');
 
     const search = page.querySelector<HTMLInputElement>('input[type="search"]');
     expect(search).toBeTruthy();
@@ -215,6 +297,7 @@ describe('App', () => {
       '/api/usage',
       '/api/policy',
       '/api/maintenance/history',
+      '/api/sources',
       '/api/sessions',
       '/api/blocked',
       '/api/retention',
@@ -237,7 +320,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.27.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
     http.expectOne('/api/usage').flush(liveUsage(true, 3600));
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
@@ -301,7 +384,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.27.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
@@ -351,7 +434,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.27.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
@@ -394,7 +477,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.27.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sessions').flush({
       count: 1,
@@ -424,7 +507,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('blocked-id', 'Reviewed session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.27.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
@@ -530,7 +613,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('old-id', 'Old session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.27.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.28.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
@@ -728,4 +811,36 @@ function flushMaintenanceResources(http: HttpTestingController) {
     blocked_after_hours: 24,
   });
   http.expectOne('/api/maintenance/history').flush({ count: 0, runs: [] });
+  http.expectOne('/api/sources').flush({
+    sources: [
+      {
+        id: 'codex',
+        label: 'Codex',
+        status: 'available',
+        session_count: 3,
+        import_supported: false,
+      },
+      {
+        id: 'claude',
+        label: 'Claude Code',
+        status: 'available',
+        session_count: 1,
+        import_supported: false,
+      },
+      {
+        id: 'chatgpt',
+        label: 'ChatGPT',
+        status: 'awaiting_import',
+        session_count: 0,
+        import_supported: true,
+      },
+      {
+        id: 'opencode',
+        label: 'OpenCode',
+        status: 'not_configured',
+        session_count: 0,
+        import_supported: false,
+      },
+    ],
+  });
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.28.0 - Source management and ChatGPT import / Gestión de fuentes e importación ChatGPT
+
+- ES: muestra estado y número de sesiones de Codex, Claude Code, ChatGPT y
+  OpenCode sin exponer rutas locales.
+- EN: shows status and session counts for Codex, Claude Code, ChatGPT, and
+  OpenCode without exposing local paths.
+- ES: analiza ZIP o JSON oficiales de ChatGPT, limita tamaño y expansión,
+  muestra una vista previa y exige confirmar `IMPORT_CHATGPT` antes de importar.
+- EN: validates official ChatGPT ZIP or JSON files, caps upload and expansion,
+  previews conversations, and requires `IMPORT_CHATGPT` before import.
+- Verificación / Verification: 26 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.28 validados.
+- Detalles / Details: [docs/milestones/0.28.0.md](docs/milestones/0.28.0.md).
+
 ## 0.27.0 - Web policy and maintenance / Política y mantenimiento web
 
 - ES: permite editar desde la interfaz los umbrales de retención y bloqueo con

@@ -96,6 +96,36 @@ interface MaintenanceHistoryResponse {
   runs: MaintenanceRun[];
 }
 
+interface SourceStatus {
+  id: 'codex' | 'claude' | 'chatgpt' | 'opencode';
+  label: string;
+  status: 'available' | 'unavailable' | 'imported' | 'awaiting_import' | 'not_configured';
+  session_count: number;
+  import_supported: boolean;
+}
+
+interface SourcesResponse {
+  sources: SourceStatus[];
+}
+
+interface ChatGptImportPreview {
+  conversation_count: number;
+  shown_count: number;
+  confirmation: 'IMPORT_CHATGPT';
+  conversations: Array<{
+    id: string;
+    title: string;
+    last_activity_at: string;
+    event_count: number;
+  }>;
+}
+
+interface ChatGptImportResult {
+  imported_count: number;
+  total_chatgpt_sessions: number;
+  stored_locally: boolean;
+}
+
 interface RefreshResponse {
   status: 'idle' | 'running' | 'completed' | 'failed';
   count: number | null;
@@ -186,6 +216,7 @@ type BlockReviewStatus = 'idle' | 'confirming' | 'dismissing' | 'dismissed' | 'r
 type HandoffStatus = 'idle' | 'loading' | 'ready';
 type PolicySaveStatus = 'idle' | 'saving' | 'saved';
 type MaintenanceStatus = 'idle' | 'running' | 'completed';
+type ChatGptImportStatus = 'idle' | 'previewing' | 'preview' | 'importing' | 'imported';
 
 type ReportName = 'weekly' | 'blocked' | 'sessions';
 
@@ -247,6 +278,11 @@ export class App {
   protected readonly maintenanceStatus = signal<MaintenanceStatus>('idle');
   protected readonly maintenanceResult = signal<MaintenanceRun | null>(null);
   protected readonly maintenanceError = signal<string | null>(null);
+  protected readonly chatgptFile = signal<File | null>(null);
+  protected readonly chatgptImportStatus = signal<ChatGptImportStatus>('idle');
+  protected readonly chatgptImportPreview = signal<ChatGptImportPreview | null>(null);
+  protected readonly chatgptImportResult = signal<ChatGptImportResult | null>(null);
+  protected readonly chatgptImportError = signal<string | null>(null);
   protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
     { id: 'weekly', label: 'Semanal' },
     { id: 'blocked', label: 'Bloqueos' },
@@ -259,6 +295,7 @@ export class App {
   protected readonly maintenanceHistory = httpResource<MaintenanceHistoryResponse>(
     () => '/api/maintenance/history',
   );
+  protected readonly sources = httpResource<SourcesResponse>(() => '/api/sources');
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
   protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
@@ -629,6 +666,93 @@ export class App {
           this.maintenanceStatus.set('idle');
         },
       });
+  }
+
+  protected sourceStatusLabel(status: SourceStatus['status']): string {
+    const labels: Record<SourceStatus['status'], string> = {
+      available: 'Disponible',
+      unavailable: 'No detectada',
+      imported: 'Importada',
+      awaiting_import: 'Pendiente de importación',
+      not_configured: 'No configurada',
+    };
+    return labels[status];
+  }
+
+  protected selectChatgptFile(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    this.chatgptFile.set(file);
+    this.chatgptImportPreview.set(null);
+    this.chatgptImportResult.set(null);
+    this.chatgptImportError.set(null);
+    this.chatgptImportStatus.set('idle');
+  }
+
+  protected async previewChatgptImport(): Promise<void> {
+    const file = this.chatgptFile();
+    if (!file || this.chatgptImportStatus() === 'previewing') {
+      return;
+    }
+    this.chatgptImportError.set(null);
+    this.chatgptImportStatus.set('previewing');
+    try {
+      const body = await file.arrayBuffer();
+      this.http
+        .post<ChatGptImportPreview>('/api/imports/chatgpt/preview', body, {
+          headers: { 'Content-Type': 'application/octet-stream', 'X-Filename': file.name },
+        })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (preview) => {
+            this.chatgptImportPreview.set(preview);
+            this.chatgptImportStatus.set('preview');
+          },
+          error: () => {
+            this.chatgptImportError.set('No se reconoció una exportación ChatGPT válida.');
+            this.chatgptImportStatus.set('idle');
+          },
+        });
+    } catch {
+      this.chatgptImportError.set('No se pudo leer el archivo seleccionado.');
+      this.chatgptImportStatus.set('idle');
+    }
+  }
+
+  protected async confirmChatgptImport(): Promise<void> {
+    const file = this.chatgptFile();
+    const preview = this.chatgptImportPreview();
+    if (!file || !preview || this.chatgptImportStatus() !== 'preview') {
+      return;
+    }
+    this.chatgptImportError.set(null);
+    this.chatgptImportStatus.set('importing');
+    try {
+      const body = await file.arrayBuffer();
+      this.http
+        .post<ChatGptImportResult>('/api/imports/chatgpt', body, {
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'X-Filename': file.name,
+            'X-Confirmation': preview.confirmation,
+          },
+        })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (result) => {
+            this.chatgptImportResult.set(result);
+            this.chatgptImportStatus.set('imported');
+            this.sources.reload();
+            this.reloadOperationalViews();
+          },
+          error: () => {
+            this.chatgptImportError.set('No se completó la importación local.');
+            this.chatgptImportStatus.set('preview');
+          },
+        });
+    } catch {
+      this.chatgptImportError.set('No se pudo volver a leer el archivo seleccionado.');
+      this.chatgptImportStatus.set('preview');
+    }
   }
 
   protected activityRole(role: 'user' | 'assistant'): string {
