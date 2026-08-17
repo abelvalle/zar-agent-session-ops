@@ -564,9 +564,23 @@ def _create_maintenance_runs_table(connection: sqlite3.Connection) -> None:
     )
 
 
+def _create_operational_digests_table(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS operational_digests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            generated_at TEXT NOT NULL,
+            model TEXT NOT NULL,
+            markdown TEXT NOT NULL
+        )
+        """
+    )
+
+
 def _ensure_schema(connection: sqlite3.Connection) -> None:
     _create_blocked_dismissals_table(connection)
     _create_maintenance_runs_table(connection)
+    _create_operational_digests_table(connection)
     table = connection.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions'"
     ).fetchone()
@@ -960,6 +974,58 @@ def maintenance_history(database: Path, limit: int = 10) -> list[dict[str, objec
             "blocked_after_hours": row[3],
             "archive_candidate_count": row[4],
             "blocked_candidate_count": row[5],
+        }
+        for row in rows
+    ]
+
+
+def record_operational_digest(
+    database: Path,
+    model: str,
+    markdown: str,
+    generated_at: datetime | None = None,
+) -> dict[str, object]:
+    if not model.strip() or not markdown.strip():
+        raise ValueError("model and markdown are required")
+    created_at = generated_at or datetime.now(timezone.utc)
+    with _connect(database) as connection:
+        _ensure_schema(connection)
+        cursor = connection.execute(
+            """
+            INSERT INTO operational_digests (generated_at, model, markdown)
+            VALUES (?, ?, ?)
+            """,
+            (created_at.isoformat(), model, markdown),
+        )
+        digest_id = cursor.lastrowid
+    return {
+        "id": digest_id,
+        "generated_at": created_at,
+        "model": model,
+        "markdown": markdown,
+    }
+
+
+def operational_digest_history(
+    database: Path, limit: int = 20
+) -> list[dict[str, object]]:
+    if not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    with _connect(database) as connection:
+        _ensure_schema(connection)
+        rows = connection.execute(
+            """
+            SELECT id, generated_at, model, markdown
+            FROM operational_digests ORDER BY id DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        {
+            "id": row[0],
+            "generated_at": datetime.fromisoformat(row[1]),
+            "model": row[2],
+            "markdown": row[3],
         }
         for row in rows
     ]

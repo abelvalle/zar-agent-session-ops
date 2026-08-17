@@ -672,6 +672,127 @@ h3 {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
+.operational-digest {
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.operational-digest-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px;
+}
+
+.operational-digest-heading h3,
+.operational-digest-heading p,
+.digest-state {
+  margin-bottom: 0;
+}
+
+.operational-digest-heading p,
+.digest-state {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 12px;
+}
+
+.digest-controls {
+  display: flex;
+  flex: none;
+  align-items: end;
+  gap: 12px;
+}
+
+.digest-controls label {
+  display: grid;
+  gap: 4px;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.digest-controls select {
+  min-width: 180px;
+  min-height: 36px;
+  padding-inline: 10px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 8px;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+}
+
+.digest-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.operational-digest mat-progress-bar {
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.operational-digest > .lifecycle-error {
+  margin: 0;
+  padding: 18px 24px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.digest-workspace {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.digest-workspace aside {
+  padding: 20px 16px;
+  border-right: 1px solid var(--mat-sys-outline-variant);
+}
+
+.digest-workspace h4 {
+  margin: 0 8px 10px;
+  font-size: 12px;
+}
+
+.digest-history {
+  display: grid;
+  gap: 4px;
+}
+
+.digest-history button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mat-sys-on-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.digest-history button:hover,
+.digest-history button:focus-visible {
+  background: var(--mat-sys-surface-container-high);
+}
+
+.digest-history--active {
+  background: var(--mat-sys-primary-container) !important;
+  color: var(--mat-sys-on-primary-container) !important;
+}
+
+.digest-history span {
+  color: inherit;
+  font-size: 11px;
+}
+
+.digest-content {
+  max-height: 560px;
+}
+
 .section-heading p {
   margin-bottom: 0;
   font-size: 13px;
@@ -1423,9 +1544,24 @@ code {
   .handoff-actions,
   .summary-heading,
   .summary-controls,
-  .ollama-status {
+  .ollama-status,
+  .operational-digest-heading,
+  .digest-controls {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .digest-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .digest-workspace aside {
+    border-right: 0;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  .digest-history {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   }
 
   .chatgpt-import-controls {

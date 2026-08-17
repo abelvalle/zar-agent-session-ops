@@ -573,6 +573,97 @@
           [innerHTML]="reportHtml()"
         ></article>
       }
+
+      <section class="operational-digest" aria-labelledby="operational-digest-title">
+        <div class="operational-digest-heading">
+          <div>
+            <h3 id="operational-digest-title">Informe operativo con IA local</h3>
+            <p>
+              Consolida decisiones, pendientes, riesgos y referencias GitHub de los últimos siete
+              días. Solo se conserva el Markdown generado.
+            </p>
+          </div>
+          @if (ollama.value()?.status === 'ready') {
+            <div class="digest-controls">
+              <label>
+                Modelo local
+                <select (change)="setDigestModel($event)">
+                  @for (model of ollama.value()?.models ?? []; track model) {
+                    <option [value]="model">{{ model }}</option>
+                  }
+                </select>
+              </label>
+              <button
+                mat-flat-button
+                type="button"
+                [disabled]="digestStatus() === 'loading'"
+                (click)="generateWeeklyDigest()"
+              >
+                {{ digestStatus() === 'loading' ? 'Generando…' : 'Generar informe' }}
+              </button>
+            </div>
+          }
+        </div>
+
+        @if (ollama.value()?.status === 'no_models') {
+          <p class="digest-state">
+            Ollama está disponible, pero no hay modelos instalados. Instala uno manualmente para
+            generar informes; la aplicación no descarga modelos.
+          </p>
+        } @else if (ollama.value()?.status === 'unavailable' || ollama.error()) {
+          <p class="digest-state">
+            Ollama local no está disponible. Inícialo y actualiza la página para generar un informe.
+          </p>
+        }
+
+        @if (digestStatus() === 'loading') {
+          <mat-progress-bar mode="indeterminate" aria-label="Generando informe operativo" />
+        }
+        @if (digestError()) {
+          <p class="lifecycle-error" role="alert">{{ digestError() }}</p>
+        }
+
+        @if (weeklyDigests.isLoading()) {
+          <p class="digest-state">Cargando historial de informes…</p>
+        } @else if (weeklyDigests.error()) {
+          <div class="digest-state" role="alert">
+            <span>No se pudo cargar el historial.</span>
+            <button mat-stroked-button type="button" (click)="weeklyDigests.reload()">
+              Reintentar historial
+            </button>
+          </div>
+        } @else if (activeDigest(); as digest) {
+          <div class="digest-workspace">
+            <aside aria-label="Historial de informes operativos">
+              <h4>Historial</h4>
+              <div class="digest-history">
+                @for (item of weeklyDigests.value()?.digests ?? []; track item.id) {
+                  <button
+                    type="button"
+                    [class.digest-history--active]="digest.id === item.id"
+                    [attr.aria-pressed]="digest.id === item.id"
+                    (click)="selectDigest(item)"
+                  >
+                    <strong>{{ item.generated_at | date: 'yyyy-MM-dd HH:mm' }}</strong>
+                    <span>{{ item.model }}</span>
+                  </button>
+                }
+              </div>
+            </aside>
+            <article
+              class="report-content digest-content"
+              tabindex="0"
+              aria-label="Contenido del informe operativo"
+              [innerHTML]="digestHtml()"
+            ></article>
+          </div>
+        } @else {
+          <p class="digest-state">
+            Aún no hay informes operativos. Cuando Ollama tenga un modelo instalado, genera el
+            primero desde aquí.
+          </p>
+        }
+      </section>
     </section>
 
     <section class="inventory" aria-labelledby="inventory-title">

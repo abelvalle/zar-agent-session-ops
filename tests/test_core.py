@@ -21,7 +21,9 @@ from zar_agent_session_ops.core import (
     load_sessions,
     load_policy,
     markdown_report,
+    operational_digest_history,
     policy_candidates,
+    record_operational_digest,
     restore_archived_session,
     restore_blocked_candidate,
     scan_codex,
@@ -36,6 +38,28 @@ from zar_agent_session_ops.core import (
 
 
 class SessionFlowTest(unittest.TestCase):
+    def test_persists_operational_digest_history_without_transcripts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "sessions.db"
+            first = record_operational_digest(
+                database,
+                "qwen3:8b",
+                "# Weekly operational digest\n\nCompleted work.",
+                datetime(2026, 8, 17, 9, tzinfo=timezone.utc),
+            )
+            second = record_operational_digest(
+                database,
+                "qwen3:8b",
+                "# Weekly operational digest\n\nPending tasks.",
+                datetime(2026, 8, 17, 10, tzinfo=timezone.utc),
+            )
+
+            history = operational_digest_history(database)
+
+            self.assertEqual([second["id"], first["id"]], [item["id"] for item in history])
+            self.assertEqual("Pending tasks.", history[0]["markdown"].splitlines()[-1])
+            self.assertNotIn("transcript", history[0])
+
     def test_builds_bounded_activity_from_explicit_local_evidence(self) -> None:
         session = Session(
             session_id="activity",

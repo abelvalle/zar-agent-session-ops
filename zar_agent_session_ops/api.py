@@ -40,8 +40,10 @@ from .core import (
     list_ollama_models,
     markdown_report,
     maintenance_history,
+    operational_digest_history,
     policy_candidates,
     record_maintenance_preview,
+    record_operational_digest,
     restore_archived_session,
     restore_blocked_candidate,
     scan_claude,
@@ -51,6 +53,7 @@ from .core import (
     session_activity,
     sync_sessions,
     summarize_with_ollama,
+    weekly_digest,
     session_key,
     weekly_report,
 )
@@ -386,6 +389,31 @@ def create_app(
             "models": models,
             "local_only": True,
         }
+
+    @app.get("/api/digests/weekly")
+    def weekly_digests() -> dict[str, object]:
+        items = operational_digest_history(database)
+        return {"count": len(items), "digests": items}
+
+    @app.post("/api/digests/weekly")
+    def generate_weekly_digest(
+        model: Annotated[str, Body(embed=True, min_length=1, max_length=200)],
+    ) -> dict[str, object]:
+        try:
+            models = list_ollama_models()
+        except RuntimeError as error:
+            raise HTTPException(status_code=503, detail="Local Ollama is unavailable") from error
+        if not models:
+            raise HTTPException(status_code=409, detail="No local Ollama models are installed")
+        if model not in models:
+            raise HTTPException(status_code=409, detail="Selected Ollama model is not installed")
+        try:
+            markdown = weekly_digest(load_sessions(database), model)
+            return record_operational_digest(database, model, markdown)
+        except (FileNotFoundError, OSError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
 
     @app.post("/api/imports/chatgpt/preview")
     async def preview_chatgpt_import(request: Request) -> dict[str, object]:

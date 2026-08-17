@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.29.0` shows the actual Ollama state, detects installed models, and generates
-and renders a local summary inside a session record.
+`0.30.0` generates weekly operational reports through local Ollama and keeps a
+visible Markdown history in the dashboard.
 
 ## Available features
 
@@ -25,6 +25,8 @@ and renders a local summary inside a session record.
   including available percentage, reset time, age, and a stale-data warning.
 - Consolidates weekly work, decisions, pending tasks, risks, and GitHub
   relationships through local Ollama.
+- Generates that weekly report from the dashboard and keeps readable local
+  history without storing the source transcripts.
 - Flags potentially blocked Codex sessions from terminal lifecycle events.
 - Dismisses false blocked signals, stores that decision in SQLite, and
   automatically reactivates the signal after new session activity.
@@ -160,6 +162,9 @@ The server listens exclusively on `127.0.0.1` and provides these operations:
 - `POST /api/archives/{record_key}/restore`: restores the original file.
 - `GET /api/reports/{report_name}`: downloads `sessions`, `weekly`, or `blocked`
   as Markdown.
+- `GET /api/digests/weekly`: reads operational report history.
+- `POST /api/digests/weekly`: generates and stores a weekly report with a model
+  already installed in local Ollama.
 - `GET /api/sessions/{session_id}/github`: explicit GitHub relationships.
 
 ```powershell
@@ -405,6 +410,11 @@ python -m zar_agent_session_ops weekly-digest --model qwen3:8b --output weekly-d
 `--max-sessions` and `--max-chars` can lower those limits. The source transcript
 is not appended to the generated Markdown, and source files are never modified.
 
+The dashboard can select an already-installed model, generate the report, and
+read previous runs without downloading files. SQLite stores only the date,
+model, and generated Markdown; generation is manual in this release, while
+automatic scheduling remains a later milestone.
+
 ## Minimal-context handoff
 
 The dashboard always generates a base handoff without a model. It includes
@@ -431,6 +441,8 @@ complete original transcript instead of reducing context.
 - Scanning, reporting, and archive preview never modify original JSON or JSONL
   files.
 - The application database contains metadata, not transcripts.
+- Operational report history contains its date, model, and generated Markdown,
+  but does not preserve the messages used to produce it.
 - ChatGPT conversations remain in the original ZIP or JSON.
 - Web imports keep a managed copy in local application storage; SQLite stores
   metadata only.
@@ -478,6 +490,8 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 
 ## Next milestones
 
+- Start a new Codex or ChatGPT task from a minimal handoff through an explicit
+  adapter without reusing the complete transcript.
 - Claude Code history and transcripts, plus an OpenCode adapter, once real
   fixtures for those sources are available.
 - Server-side pagination and authentication when usage moves beyond loopback.

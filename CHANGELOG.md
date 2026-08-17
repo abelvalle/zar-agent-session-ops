@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.30.0 - Operational report history / Historial de informes operativos
+
+- ES: genera desde el dashboard un informe semanal con un modelo ya instalado
+  en Ollama local y muestra el Markdown en la propia interfaz.
+- EN: generates a weekly report from the dashboard with a model already
+  installed in local Ollama and renders its Markdown inside the interface.
+- ES: conserva fecha, modelo y resultado en SQLite para consultar ejecuciones
+  anteriores sin almacenar las transcripciones fuente.
+- EN: stores date, model, and output in SQLite so previous runs remain readable
+  without persisting source transcripts.
+- Verificación / Verification: 28 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.30.
+- Detalles / Details: [docs/milestones/0.30.0.md](docs/milestones/0.30.0.md).
+
 ## 0.29.0 - Visible local summaries / Resúmenes locales visibles
 
 - ES: muestra si Ollama local está listo, no tiene modelos o no está disponible,

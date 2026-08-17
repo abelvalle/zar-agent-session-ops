@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.29.0` muestra el
-estado real de Ollama, detecta sus modelos instalados y permite generar y leer
-un resumen local dentro de la ficha de una sesión.
+sesiones locales de agentes de programación. La versión `0.30.0` genera informes
+operativos semanales con Ollama local y conserva un historial Markdown visible
+desde el dashboard.
 
 ## Funciones disponibles
 
@@ -27,6 +27,8 @@ un resumen local dentro de la ficha de una sesión.
   obsoleto.
 - Consolida trabajo, decisiones, pendientes, riesgos y relaciones GitHub de la
   semana mediante Ollama local.
+- Genera ese informe semanal desde el dashboard y conserva un historial local
+  legible sin guardar las transcripciones que lo originaron.
 - Señala sesiones Codex potencialmente bloqueadas mediante eventos terminales.
 - Permite descartar falsos bloqueos, conserva la decisión en SQLite y reactiva
   la señal automáticamente cuando la sesión vuelve a tener actividad.
@@ -166,6 +168,9 @@ El servidor escucha exclusivamente en `127.0.0.1` y ofrece estas operaciones:
 - `POST /api/archives/{record_key}/restore`: restaura el archivo original.
 - `GET /api/reports/{report_name}`: descarga `sessions`, `weekly` o `blocked`
   como Markdown.
+- `GET /api/digests/weekly`: consulta el historial de informes operativos.
+- `POST /api/digests/weekly`: genera y guarda un informe semanal con un modelo
+  ya instalado en el Ollama local.
 - `GET /api/sessions/{session_id}/github`: relaciones GitHub explícitas.
 
 ```powershell
@@ -417,6 +422,12 @@ python -m zar_agent_session_ops weekly-digest --model qwen3:8b --output weekly-d
 `--max-sessions` y `--max-chars` permiten reducir esos límites. La transcripción
 no se concatena al Markdown generado y las fuentes nunca se modifican.
 
+El dashboard permite elegir uno de los modelos ya instalados, generar el
+informe y consultar sus ejecuciones anteriores sin descargar archivos. SQLite
+conserva únicamente la fecha, el modelo y el Markdown resultante; la generación
+es manual en esta versión y su programación automática queda para un hito
+posterior.
+
 ## Relevo de contexto mínimo
 
 El dashboard genera siempre un relevo base sin modelo. Incluye metadatos, el
@@ -442,6 +453,8 @@ transcripción original completa en vez de reducir el contexto.
 - El escaneo, los informes y la vista previa nunca modifican los JSON o JSONL
   originales.
 - La base propia contiene metadatos, no transcripciones.
+- El historial de informes operativos contiene fecha, modelo y Markdown
+  generado, pero no conserva los mensajes usados para producirlo.
 - Las conversaciones ChatGPT permanecen dentro del ZIP o JSON original.
 - En la importación web, la copia gestionada permanece en el almacenamiento
   local de la aplicación; SQLite conserva solo sus metadatos.
@@ -491,6 +504,8 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 
 ## Próximos hitos
 
+- Iniciar una tarea nueva de Codex o ChatGPT desde un relevo mínimo mediante un
+  adaptador explícito, sin reutilizar la transcripción completa.
 - Historial y transcripciones Claude Code, y adaptador OpenCode, cuando existan
   fixtures reales de esas fuentes.
 - Paginación de servidor y autenticación cuando el uso deje de ser local.

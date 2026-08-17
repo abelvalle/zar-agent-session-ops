@@ -120,6 +120,18 @@ interface SessionSummaryResponse {
   generated_at: string;
 }
 
+interface OperationalDigest {
+  id: number;
+  generated_at: string;
+  model: string;
+  markdown: string;
+}
+
+interface OperationalDigestHistory {
+  count: number;
+  digests: OperationalDigest[];
+}
+
 interface ChatGptImportPreview {
   conversation_count: number;
   shown_count: number;
@@ -230,6 +242,7 @@ type PolicySaveStatus = 'idle' | 'saving' | 'saved';
 type MaintenanceStatus = 'idle' | 'running' | 'completed';
 type ChatGptImportStatus = 'idle' | 'previewing' | 'preview' | 'importing' | 'imported';
 type SummaryStatus = 'idle' | 'loading' | 'ready';
+type DigestStatus = 'idle' | 'loading';
 
 type ReportName = 'weekly' | 'blocked' | 'sessions';
 
@@ -300,6 +313,10 @@ export class App {
   protected readonly summaryStatus = signal<SummaryStatus>('idle');
   protected readonly summaryMarkdown = signal('');
   protected readonly summaryError = signal<string | null>(null);
+  protected readonly digestModel = signal('');
+  protected readonly digestStatus = signal<DigestStatus>('idle');
+  protected readonly selectedDigest = signal<OperationalDigest | null>(null);
+  protected readonly digestError = signal<string | null>(null);
   protected readonly reportOptions: ReadonlyArray<{ id: ReportName; label: string }> = [
     { id: 'weekly', label: 'Semanal' },
     { id: 'blocked', label: 'Bloqueos' },
@@ -314,6 +331,9 @@ export class App {
   );
   protected readonly sources = httpResource<SourcesResponse>(() => '/api/sources');
   protected readonly ollama = httpResource<OllamaResponse>(() => '/api/ollama');
+  protected readonly weeklyDigests = httpResource<OperationalDigestHistory>(
+    () => '/api/digests/weekly',
+  );
   protected readonly inventory = httpResource<InventoryResponse>(() => '/api/sessions');
   protected readonly blocked = httpResource<BlockedResponse>(() => '/api/blocked');
   protected readonly retention = httpResource<RetentionResponse>(() => '/api/retention');
@@ -337,6 +357,12 @@ export class App {
   );
   protected readonly summaryHtml = computed(() =>
     marked.parse(this.summaryMarkdown(), { async: false, gfm: true }),
+  );
+  protected readonly activeDigest = computed(
+    () => this.selectedDigest() ?? this.weeklyDigests.value()?.digests[0] ?? null,
+  );
+  protected readonly digestHtml = computed(() =>
+    marked.parse(this.activeDigest()?.markdown ?? '', { async: false, gfm: true }),
   );
   protected readonly usageSummary = computed(() => {
     const unique = new Map<string, AgentSession>();
@@ -539,6 +565,45 @@ export class App {
 
   protected selectReport(report: ReportName): void {
     this.selectedReport.set(report);
+  }
+
+  protected setDigestModel(event: Event): void {
+    this.digestModel.set((event.target as HTMLSelectElement).value);
+    this.digestError.set(null);
+  }
+
+  protected selectDigest(digest: OperationalDigest): void {
+    this.selectedDigest.set(digest);
+  }
+
+  protected generateWeeklyDigest(): void {
+    if (this.digestStatus() === 'loading') {
+      return;
+    }
+    const model = this.digestModel() || this.ollama.value()?.models[0];
+    if (!model) {
+      this.digestError.set('No hay un modelo local instalado para generar el informe.');
+      return;
+    }
+    this.digestModel.set(model);
+    this.digestError.set(null);
+    this.digestStatus.set('loading');
+    this.http
+      .post<OperationalDigest>('/api/digests/weekly', { model })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (digest) => {
+          this.selectedDigest.set(digest);
+          this.digestStatus.set('idle');
+          this.weeklyDigests.reload();
+        },
+        error: () => {
+          this.digestError.set(
+            'No se pudo generar el informe. Comprueba Ollama y la actividad de los últimos siete días.',
+          );
+          this.digestStatus.set('idle');
+        },
+      });
   }
 
   protected locateSession(session: AgentSession): void {

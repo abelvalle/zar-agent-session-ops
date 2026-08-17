@@ -67,7 +67,11 @@ class ApiTest(unittest.TestCase):
                         f"/api/sessions/{record_key}/summary",
                         json={"model": "qwen3:8b"},
                     )
+                    rejected_digest = client.post(
+                        "/api/digests/weekly", json={"model": "qwen3:8b"}
+                    )
                 self.assertEqual(409, rejected.status_code)
+                self.assertEqual(409, rejected_digest.status_code)
 
                 with (
                     patch(
@@ -100,6 +104,27 @@ class ApiTest(unittest.TestCase):
                     self.assertEqual(
                         "unavailable", client.get("/api/ollama").json()["status"]
                     )
+
+                with (
+                    patch(
+                        "zar_agent_session_ops.api.list_ollama_models",
+                        return_value=["qwen3:8b"],
+                    ),
+                    patch(
+                        "zar_agent_session_ops.api.weekly_digest",
+                        return_value="# Weekly operational digest\n\n## Pending tasks\n\nAdd tests.",
+                    ) as digest,
+                ):
+                    generated = client.post(
+                        "/api/digests/weekly", json={"model": "qwen3:8b"}
+                    )
+                self.assertEqual(200, generated.status_code)
+                self.assertEqual("qwen3:8b", generated.json()["model"])
+                self.assertEqual(1, digest.call_count)
+                history = client.get("/api/digests/weekly").json()
+                self.assertEqual(1, history["count"])
+                self.assertIn("Pending tasks", history["digests"][0]["markdown"])
+                self.assertNotIn(str(source), generated.text)
 
     def test_previews_and_confirms_a_chatgpt_export_upload(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -278,7 +303,7 @@ class ApiTest(unittest.TestCase):
                 create_app(database, config, root, root / "claude")
             ) as client:
                 self.assertEqual(
-                    {"status": "ok", "version": "0.29.0"},
+                    {"status": "ok", "version": "0.30.0"},
                     client.get("/api/health").json(),
                 )
                 self.assertEqual("unavailable", client.get("/api/usage").json()["status"])
@@ -434,6 +459,7 @@ class ApiTest(unittest.TestCase):
                         "/api/maintenance/preview",
                         "/api/sources",
                         "/api/ollama",
+                        "/api/digests/weekly",
                         "/api/imports/chatgpt/preview",
                         "/api/imports/chatgpt",
                         "/api/sessions",
