@@ -734,6 +734,18 @@ export class App {
     return `/api/sessions/${session.record_key}/handoff`;
   }
 
+  protected codexContinuationUrl(session: AgentSession): string {
+    const prompt = [
+      'Continúa este trabajo en una tarea nueva usando únicamente el siguiente relevo mínimo:',
+      this.handoffMarkdown(),
+    ].join('\n\n');
+    const query = [`prompt=${encodeURIComponent(prompt)}`];
+    if (/^(?:[A-Za-z]:[\\/]|\/)/.test(session.repository)) {
+      query.push(`path=${encodeURIComponent(session.repository)}`);
+    }
+    return `codex://threads/new?${query.join('&')}`;
+  }
+
   protected setPolicyArchiveDays(event: Event): void {
     this.policyArchiveDays.set(Number((event.target as HTMLInputElement).value));
     this.policySaveStatus.set('idle');

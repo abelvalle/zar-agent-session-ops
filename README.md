@@ -3,9 +3,9 @@
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.30.0` genera informes
-operativos semanales con Ollama local y conserva un historial Markdown visible
-desde el dashboard.
+sesiones locales de agentes de programación. La versión `0.31.0` abre una tarea
+nueva de Codex con el repositorio y el relevo mínimo preparados desde el
+dashboard.
 
 ## Funciones disponibles
 
@@ -55,6 +55,8 @@ desde el dashboard.
   Markdown dentro de su ficha, sin persistir el resultado.
 - Genera un relevo Markdown base desde cualquier ficha con metadatos y contexto
   reciente acotado; Ollama sigue disponible como síntesis CLI opcional.
+- Abre una tarea nueva de Codex en el repositorio correcto con ese relevo en el
+  compositor, sin enviar el mensaje ni reutilizar la transcripción completa.
 - Archiva sesiones individualmente o mediante una política configurable.
 - Previsualiza las sesiones que cumplirían la política sin mover archivos.
 - Permite revisar y confirmar el archivado desde la ficha operativa.
@@ -433,7 +435,10 @@ posterior.
 El dashboard genera siempre un relevo base sin modelo. Incluye metadatos, el
 objetivo conocido, el último resultado y cualquier petición posterior, cada
 fragmento limitado a 800 caracteres. Declara lo que no puede inferir y nunca
-incluye la ruta fuente. El Markdown se lee, copia o descarga desde la ficha.
+incluye la ruta fuente. El Markdown se lee, copia o descarga desde la ficha. El
+botón **Abrir nueva tarea en Codex** usa el enlace oficial
+`codex://threads/new`, abre el repositorio detectado y deja el relevo en el
+compositor para que el usuario lo revise y lo envíe.
 
 El comando `handoff` conserva la síntesis semántica opcional mediante Ollama para
 producir objetivo, trabajo completado, decisiones, pendientes, riesgos y primera
@@ -443,9 +448,11 @@ acción. No concatena la transcripción original ni modifica la sesión fuente.
 python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b --output session-handoff.md
 ```
 
-Para Codex, inicia una tarea nueva con `/new` y adjunta o pega
-`session-handoff.md`. Para ChatGPT, abre un chat nuevo y adjunta el mismo archivo.
-No uses `codex fork` para este caso: crea otro chat, pero conserva la
+La aplicación no envía el mensaje automáticamente. La forma y los parámetros
+del enlace están respaldados por la
+[documentación oficial de comandos de OpenAI](https://learn.chatgpt.com/docs/reference/commands).
+Como alternativa manual, abre un chat nuevo y pega o adjunta
+`session-handoff.md`. No uses `codex fork` para este caso: conserva la
 transcripción original completa en vez de reducir el contexto.
 
 ## Seguridad y privacidad
@@ -504,8 +511,8 @@ Los detalles de cada versión están en [CHANGELOG.md](CHANGELOG.md) y en
 
 ## Próximos hitos
 
-- Iniciar una tarea nueva de Codex o ChatGPT desde un relevo mínimo mediante un
-  adaptador explícito, sin reutilizar la transcripción completa.
+- Programar la generación semanal de informes operativos con política local y
+  ejecución observable.
 - Historial y transcripciones Claude Code, y adaptador OpenCode, cuando existan
   fixtures reales de esas fuentes.
 - Paginación de servidor y autenticación cuando el uso deje de ser local.

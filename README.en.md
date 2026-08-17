@@ -3,8 +3,8 @@
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.30.0` generates weekly operational reports through local Ollama and keeps a
-visible Markdown history in the dashboard.
+`0.31.0` opens a new Codex task with its repository and minimal handoff prepared
+from the dashboard.
 
 ## Available features
 
@@ -53,6 +53,8 @@ visible Markdown history in the dashboard.
   Markdown in its record without persisting the result.
 - Generates a base Markdown handoff from any record using metadata and bounded
   recent context; Ollama remains an optional CLI synthesis path.
+- Opens a new Codex task in the correct repository with that handoff in the
+  composer, without sending it or reusing the complete transcript.
 - Archives individual sessions or applies a configurable retention policy.
 - Previews sessions that match retention policy without moving files.
 - Reviews and confirms an archive operation from the operational record.
@@ -421,7 +423,9 @@ The dashboard always generates a base handoff without a model. It includes
 metadata, the known objective, latest outcome, and any later request, with each
 excerpt capped at 800 characters. It states what cannot be inferred and never
 includes the source path. Markdown can be read, copied, or downloaded in the
-record.
+record. The **Open new task in Codex** button uses the official
+`codex://threads/new` link, opens the detected repository, and leaves the
+handoff in the composer for the user to review and send.
 
 The `handoff` command keeps the optional Ollama semantic synthesis for the goal,
 completed work, decisions, pending tasks, risks, and first next action. It
@@ -431,10 +435,12 @@ neither appends the raw transcript nor modifies the source session.
 python -m zar_agent_session_ops handoff SESSION_ID --model qwen3:8b --output session-handoff.md
 ```
 
-In Codex, start a new task with `/new`, then attach or paste
-`session-handoff.md`. In ChatGPT, open a new chat and attach the same file. Do
-not use `codex fork` for this purpose: it creates another chat but preserves the
-complete original transcript instead of reducing context.
+The application does not send the message automatically. The link form and its
+parameters follow the
+[official OpenAI commands documentation](https://learn.chatgpt.com/docs/reference/commands).
+As a manual fallback, open a new chat and paste or attach `session-handoff.md`.
+Do not use `codex fork` for this purpose: it preserves the complete original
+transcript instead of reducing context.
 
 ## Security and privacy
 
@@ -490,8 +496,8 @@ Release details live in [CHANGELOG.md](CHANGELOG.md) and
 
 ## Next milestones
 
-- Start a new Codex or ChatGPT task from a minimal handoff through an explicit
-  adapter without reusing the complete transcript.
+- Schedule weekly operational-report generation with local policy and observable
+  execution.
 - Claude Code history and transcripts, plus an OpenCode adapter, once real
   fixtures for those sources are available.
 - Server-side pagination and authentication when usage moves beyond loopback.

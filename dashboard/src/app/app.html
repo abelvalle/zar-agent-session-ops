@@ -1040,6 +1040,9 @@
             <mat-progress-bar mode="indeterminate" aria-label="Generando relevo" />
           } @else if (handoffStatus() === 'ready') {
             <div class="handoff-actions">
+              <a class="codex-continuation" mat-flat-button [href]="codexContinuationUrl(selected)">
+                Abrir nueva tarea en Codex
+              </a>
               <button mat-stroked-button type="button" (click)="copyHandoff()">
                 Copiar Markdown
               </button>
@@ -1050,6 +1053,10 @@
                 <span role="status">Copiado al portapapeles.</span>
               }
             </div>
+            <p class="handoff-note">
+              Codex abrirá el repositorio y dejará este relevo en el compositor; revísalo y envíalo
+              cuando estés listo.
+            </p>
             <article
               class="report-content handoff-content"
               aria-label="Contenido del relevo"

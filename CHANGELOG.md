@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.31.0 - Direct Codex continuation / Continuación directa en Codex
+
+- ES: abre desde el relevo una tarea nueva de Codex con el repositorio detectado
+  y el contexto mínimo precargado en el compositor.
+- EN: opens a new Codex task from a handoff with the detected repository and
+  minimal context prefilled in the composer.
+- ES: usa el enlace oficial `codex://threads/new`, no envía el mensaje
+  automáticamente y mantiene disponibles copia y descarga como alternativas.
+- EN: uses the official `codex://threads/new` link, never sends automatically,
+  and keeps copy and download as fallbacks.
+- Verificación / Verification: 28 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, validación visual y stack Docker 0.31.
+- Detalles / Details: [docs/milestones/0.31.0.md](docs/milestones/0.31.0.md).
+
 ## 0.30.0 - Operational report history / Historial de informes operativos
 
 - ES: genera desde el dashboard un informe semanal con un modelo ya instalado

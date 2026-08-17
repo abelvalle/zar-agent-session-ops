@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.30.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http, 'ready');
     http.expectOne('/api/sessions').flush({
@@ -49,7 +49,7 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.30.0');
+    expect(page.textContent).toContain('API 0.31.0');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -322,8 +322,12 @@ describe('App', () => {
 
     expect(page.querySelector('.handoff-content h1')?.textContent).toContain('Session handoff');
     expect(page.querySelector('.handoff-content script')).toBeNull();
+    expect(page.textContent).toContain('Abrir nueva tarea en Codex');
     expect(page.textContent).toContain('Copiar Markdown');
-    expect(page.querySelector<HTMLAnchorElement>('.handoff-actions a')?.href).toContain(
+    expect(page.querySelector<HTMLAnchorElement>('.codex-continuation')?.getAttribute('href')).toBe(
+      'codex://threads/new?prompt=Contin%C3%BAa%20este%20trabajo%20en%20una%20tarea%20nueva%20usando%20%C3%BAnicamente%20el%20siguiente%20relevo%20m%C3%ADnimo%3A%0A%0A%23%20Session%20handoff%0A%0A%23%23%20Objective%0A%0ABuild%20dashboard%0A%0A%3Cscript%3Ealert(%22unsafe%22)%3C%2Fscript%3E&path=D%3A%2Frepo',
+    );
+    expect(page.querySelector<HTMLAnchorElement>('.handoff-actions a[download]')?.href).toContain(
       '/api/sessions/codex-active-id-Build%20dashboard/handoff',
     );
   });
@@ -362,7 +366,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.30.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
     http.expectOne('/api/usage').flush(liveUsage(true, 3600));
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
@@ -427,7 +431,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.30.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
@@ -477,7 +481,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.30.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
@@ -520,7 +524,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.30.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sources').flush({ sources: [] });
     http.expectOne('/api/ollama').flush({
@@ -556,7 +560,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('blocked-id', 'Reviewed session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.30.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
@@ -662,7 +666,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('old-id', 'Old session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.30.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
