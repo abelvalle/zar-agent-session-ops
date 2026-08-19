@@ -1,10 +1,14 @@
 # Zar Agent Session Ops
 
+<p align="center">
+  <img src="dashboard/public/brand/zar-agent-session-ops.png" alt="Zar Agent Session Ops logo" width="180">
+</p>
+
 [Español](README.md)
 
 Open-source lifecycle management for local coding-agent sessions. Version
-`0.31.0` opens a new Codex task with its repository and minimal handoff prepared
-from the dashboard.
+`0.31.1` introduces a dedicated visual identity across the documentation,
+dashboard, and browser tab.
 
 ## Available features
 

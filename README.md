@@ -1,11 +1,15 @@
 # Zar Agent Session Ops
 
+<p align="center">
+  <img src="dashboard/public/brand/zar-agent-session-ops.png" alt="Logotipo de Zar Agent Session Ops" width="180">
+</p>
+
 [English](README.en.md)
 
 Plataforma open source para inspeccionar y gobernar el ciclo de vida de las
-sesiones locales de agentes de programación. La versión `0.31.0` abre una tarea
-nueva de Codex con el repositorio y el relevo mínimo preparados desde el
-dashboard.
+sesiones locales de agentes de programación. La versión `0.31.1` incorpora una
+identidad visual propia en la documentación, el dashboard y la pestaña del
+navegador.
 
 ## Funciones disponibles
 

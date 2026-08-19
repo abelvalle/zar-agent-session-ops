@@ -22,15 +22,34 @@
 
 .brand-mark {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   place-items: center;
-  border-radius: 9px;
-  background: var(--mat-sys-primary);
-  color: var(--mat-sys-on-primary);
-  font-size: 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--mat-sys-primary) 18%, transparent);
+  border-radius: 11px;
+  background: #f7f9fc;
+}
+
+.brand-logo {
+  display: block;
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.brand-copy {
+  display: grid;
+  gap: 1px;
+  line-height: 1;
+}
+
+.brand-product {
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .brand-name {
@@ -1485,7 +1504,7 @@ code {
 }
 
 @media (max-width: 680px) {
-  .brand-name {
+  .brand-copy {
     display: none;
   }
 

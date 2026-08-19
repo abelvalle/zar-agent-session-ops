@@ -20,7 +20,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.1' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http, 'ready');
     http.expectOne('/api/sessions').flush({
@@ -49,7 +49,11 @@ describe('App', () => {
     const page = fixture.nativeElement as HTMLElement;
 
     expect(page.querySelector('h1')?.textContent).toContain('Centro operativo de sesiones');
-    expect(page.textContent).toContain('API 0.31.0');
+    expect(page.textContent).toContain('API 0.31.1');
+    expect(page.querySelector<HTMLImageElement>('.brand-logo')?.src).toContain(
+      '/brand/zar-agent-session-ops.png',
+    );
+    expect(page.querySelector('.brand-product')?.textContent).toContain('Zar Agent');
     expect(page.textContent).toContain('Build dashboard');
     expect(page.textContent).toContain('Old work');
     expect(page.textContent).toContain('Claude Code');
@@ -366,7 +370,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.1' });
     http.expectOne('/api/usage').flush(liveUsage(true, 3600));
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
@@ -431,7 +435,7 @@ describe('App', () => {
       size_bytes: 4096,
     };
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.1' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: sessions.length, sessions });
@@ -481,7 +485,7 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.1' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 0, sessions: [] });
@@ -524,7 +528,7 @@ describe('App', () => {
       error: null,
     });
     await new Promise((resolve) => setTimeout(resolve));
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.1' });
     http.expectOne('/api/usage').flush(liveUsage());
     http.expectOne('/api/sources').flush({ sources: [] });
     http.expectOne('/api/ollama').flush({
@@ -560,7 +564,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('blocked-id', 'Reviewed session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.1' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });
@@ -666,7 +670,7 @@ describe('App', () => {
     fixture.detectChanges();
     const candidate = session('old-id', 'Old session', 'active');
 
-    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.0' });
+    http.expectOne('/api/health').flush({ status: 'ok', version: '0.31.1' });
     http.expectOne('/api/usage').flush(liveUsage());
     flushMaintenanceResources(http);
     http.expectOne('/api/sessions').flush({ count: 1, sessions: [candidate] });

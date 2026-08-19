@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.31.1 - Visual identity / Identidad visual
+
+- ES: incorpora un logotipo original que representa sesiones apiladas y su
+  continuidad operativa.
+- EN: adds an original logo representing layered sessions and operational
+  continuity.
+- ES: muestra la identidad en los README, la barra del dashboard y el favicon,
+  manteniendo accesibilidad y adaptación móvil.
+- EN: displays the identity in both README files, the dashboard toolbar, and the
+  favicon while preserving accessibility and mobile behavior.
+- Verificación / Verification: 28 pruebas Python, 7 pruebas Angular, build de
+  producción, auditoría npm, detector de interfaz y stack Docker 0.31.1.
+- Detalles / Details: [docs/milestones/0.31.1.md](docs/milestones/0.31.1.md).
+
 ## 0.31.0 - Direct Codex continuation / Continuación directa en Codex
 
 - ES: abre desde el relevo una tarea nueva de Codex con el repositorio detectado

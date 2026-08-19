@@ -1,7 +1,12 @@
 <mat-toolbar class="topbar">
   <div class="brand" aria-label="Zar Agent Session Ops">
-    <span class="brand-mark" aria-hidden="true">ZA</span>
-    <span class="brand-name">Session Ops</span>
+    <span class="brand-mark" aria-hidden="true">
+      <img class="brand-logo" src="/brand/zar-agent-session-ops.png" alt="" />
+    </span>
+    <span class="brand-copy">
+      <span class="brand-product">Zar Agent</span>
+      <span class="brand-name">Session Ops</span>
+    </span>
   </div>
   <span class="topbar-spacer"></span>
   <span class="api-state" [class.api-state--offline]="failed()">
